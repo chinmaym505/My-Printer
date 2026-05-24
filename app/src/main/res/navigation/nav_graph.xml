@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<navigation xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/nav_graph"
+    app:startDestination="@id/navigation_home">
+
+    <fragment
+        android:id="@+id/navigation_home"
+        android:name="com.chinmay.myprinter.ui.home.HomeFragment"
+        android:label="Home" />
+
+    <fragment
+        android:id="@+id/navigation_models"
+        android:name="com.chinmay.myprinter.ui.thingiverse.ThingiverseBrowserFragment"
+        android:label="Models">
+        <action
+            android:id="@+id/action_models_to_detail"
+            app:destination="@id/model_detail_fragment" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/model_detail_fragment"
+        android:name="com.chinmay.myprinter.ui.thingiverse.ModelDetailFragment"
+        android:label="Model Details">
+        <argument
+            android:name="thing_id"
+            app:argType="long" />
+        <argument
+            android:name="thing_name"
+            app:argType="string" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/navigation_files"
+        android:name="com.chinmay.myprinter.ui.camera.CameraFragment"
+        android:label="Camera" />
+
+    <fragment
+        android:id="@+id/navigation_settings"
+        android:name="com.chinmay.myprinter.ui.settings.SettingsFragment"
+        android:label="Settings" />
+
+</navigation>

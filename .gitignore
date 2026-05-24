@@ -1,0 +1,25 @@
+# Android Studio / IntelliJ
+*.iml
+.gradle
+/local.properties
+/.idea/caches
+/.idea/libraries
+/.idea/modules.xml
+/.idea/workspace.xml
+/.idea/navEditor.xml
+/.idea/assetWizardSettings.xml
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+
+# Large Binaries & NDK
+*.zip
+*.zip.*
+*.so
+/scripts/cura_build/
+
+# App specific
+/app/build/
+/app/src/main/jniLibs/
