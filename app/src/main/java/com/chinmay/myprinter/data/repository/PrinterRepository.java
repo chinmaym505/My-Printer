@@ -218,6 +218,20 @@ public class PrinterRepository {
         }).start();
     }
 
+    public void deleteFile(String filename) {
+        printerClient.deleteFile(filename, new CommandCallback() {
+            @Override
+            public void onSuccess() {
+                refreshFiles();
+            }
+
+            @Override
+            public void onError(String error) {
+                errorLiveData.postValue("Delete failed: " + error);
+            }
+        });
+    }
+
     public void cleanup() {
         printerClient.removeStatusListener(combinedListener);
     }

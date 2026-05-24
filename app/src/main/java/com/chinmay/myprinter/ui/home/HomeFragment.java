@@ -194,6 +194,15 @@ public class HomeFragment extends Fragment {
             viewModel.startPrint(file.getFilename());
             Toast.makeText(getContext(), "Starting print: " + file.getFilename(), Toast.LENGTH_SHORT).show();
         });
+
+        fileAdapter.setOnFileDeleteListener(file ->
+            new AlertDialog.Builder(requireContext())
+                .setTitle("Delete File")
+                .setMessage("Delete \"" + file.getFilename() + "\"?\nThis cannot be undone.")
+                .setPositiveButton("Delete", (d, w) -> viewModel.deleteFile(file.getFilename()))
+                .setNegativeButton("Cancel", null)
+                .show()
+        );
     }
 
     private void setupClickListeners() {

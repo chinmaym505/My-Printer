@@ -28,6 +28,7 @@ public interface PrinterClient {
 
     // File management
     List<GCodeFile> listFiles();
+    void deleteFile(String filename, CommandCallback callback);
 
     // G-code
     void sendGCode(String gcode, CommandCallback callback);

@@ -77,6 +77,10 @@ public class HomeViewModel extends ViewModel {
         repository.refreshFiles();
     }
 
+    public void deleteFile(String filename) {
+        repository.deleteFile(filename);
+    }
+
     public boolean isConnected() {
         return repository.isConnected();
     }

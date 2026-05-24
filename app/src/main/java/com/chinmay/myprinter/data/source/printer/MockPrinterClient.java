@@ -278,6 +278,11 @@ public class MockPrinterClient implements PrinterClient {
     }
 
     @Override
+    public void deleteFile(String filename, CommandCallback callback) {
+        if (callback != null) mainHandler.post(callback::onSuccess);
+    }
+
+    @Override
     public void sendGCode(String gcode, CommandCallback callback) {
         if (!connected) {
             if (callback != null) {

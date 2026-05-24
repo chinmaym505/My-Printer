@@ -45,6 +45,16 @@
                 android:text="Print"
                 android:textSize="14sp" />
 
+            <Button
+                android:id="@+id/delete_button"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="4dp"
+                android:text="Delete"
+                android:textSize="14sp"
+                style="@style/Widget.Material3.Button.TextButton"
+                android:textColor="@android:color/holo_red_dark" />
+
         </LinearLayout>
 
     </LinearLayout>

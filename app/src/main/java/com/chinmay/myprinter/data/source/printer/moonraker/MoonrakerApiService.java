@@ -7,9 +7,12 @@ import com.chinmay.myprinter.data.source.printer.moonraker.model.PrinterObjects;
 import java.util.List;
 import java.util.Map;
 
+import okhttp3.ResponseBody;
 import retrofit2.Call;
+import retrofit2.http.DELETE;
 import retrofit2.http.GET;
 import retrofit2.http.POST;
+import retrofit2.http.Path;
 import retrofit2.http.Query;
 import retrofit2.http.QueryMap;
 
@@ -82,4 +85,10 @@ public interface MoonrakerApiService {
      */
     @GET("server/temperature_store")
     Call<MoonrakerResponse<Map<String, Object>>> getTemperatureHistory();
+
+    /**
+     * Delete a file. filename may include subdirectory path (e.g. "subdir/file.gcode").
+     */
+    @DELETE("server/files/gcodes/{filename}")
+    Call<ResponseBody> deleteFile(@Path(value = "filename", encoded = true) String filename);
 }

@@ -424,6 +424,26 @@ public class MoonrakerClient implements PrinterClient {
     }
 
     @Override
+    public void deleteFile(String filename, CommandCallback callback) {
+        apiService.deleteFile(filename).enqueue(new retrofit2.Callback<okhttp3.ResponseBody>() {
+            @Override
+            public void onResponse(retrofit2.Call<okhttp3.ResponseBody> call,
+                                   retrofit2.Response<okhttp3.ResponseBody> response) {
+                if (response.isSuccessful()) {
+                    callback.onSuccess();
+                } else {
+                    callback.onError("Delete failed: HTTP " + response.code());
+                }
+            }
+
+            @Override
+            public void onFailure(retrofit2.Call<okhttp3.ResponseBody> call, Throwable t) {
+                callback.onError(t.getMessage());
+            }
+        });
+    }
+
+    @Override
     public void sendGCode(String gcode, CommandCallback callback) {
         apiService.sendGcode(gcode).enqueue(createSimpleCallback(callback));
     }
