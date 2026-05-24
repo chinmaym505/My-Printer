@@ -1,6 +1,6 @@
-# Myprinter
+# My Printer
 
-**Myprinter** is a robust Android application designed for remote management and monitoring of 3D printers running the **Moonraker (Klipper)** API. It bridges the gap between desktop slicing and mobile convenience by providing a native on-device slicing engine alongside comprehensive printer controls.
+**My Printer** is a robust Android application designed for remote management and monitoring of 3D printers running the **Moonraker (Klipper)** API. It bridges the gap between desktop slicing and mobile convenience by providing a native on-device slicing engine alongside comprehensive printer controls.
 
 ## 🚀 Key Features
 
@@ -32,14 +32,12 @@
 ## ⚠️ Current Issues
 
 *   Temp graph timing is buggy
-*   Gcode list not updating
-*   Sliced gcode can't upload to Moonraker
 
 ## 📥 Installation
 
 1.  **Clone the repository**:
     ```bash
-    git clone https://github.com/yourusername/Myprinter.git
+    git clone https://github.com/chinmaym505/My-Printer.git
     ```
 2.  **CuraEngine Build**:
     The project requires a native build of `CuraEngine`. See the `scripts/build_cura_android.sh` for build instructions using the Android NDK.
