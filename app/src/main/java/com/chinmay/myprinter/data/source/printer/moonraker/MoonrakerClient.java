@@ -37,6 +37,7 @@ public class MoonrakerClient implements PrinterClient {
     private final List<PrinterStatusListener> listeners;
     private PrinterStatus currentStatus;
     private boolean isConnected = false;
+    private ConnectionCallback connectionCallback;
 
     public MoonrakerClient() {
         this.webSocket = new MoonrakerWebSocket();
@@ -46,6 +47,8 @@ public class MoonrakerClient implements PrinterClient {
 
     @Override
     public void connect(String url, String apiKey, ConnectionCallback callback) {
+        this.connectionCallback = callback;
+        if (webSocket != null) webSocket.disconnect();
         Log.d(TAG, "Connecting to: " + url);
 
         // Parse URL to get host and port
@@ -130,6 +133,14 @@ public class MoonrakerClient implements PrinterClient {
             @Override
             public void onConnectionChanged(boolean connected) {
                 Log.d(TAG, "WebSocket connection: " + connected);
+                isConnected = connected;
+                if (connectionCallback != null) {
+                    if (connected) {
+                        connectionCallback.onConnected();
+                    } else {
+                        connectionCallback.onDisconnected();
+                    }
+                }
             }
 
             @Override

@@ -85,6 +85,7 @@ public class HomeFragment extends Fragment {
     private Button cooldownBedButton;
     private TemperatureGraphView temperatureGraph;
     private RecyclerView filesRecyclerView;
+    private Button reconnectButton;
     private CameraView cameraView;
     private TextView cameraStatusText;
     private Button refreshCameraButton;
@@ -159,6 +160,7 @@ public class HomeFragment extends Fragment {
         cooldownBedButton = view.findViewById(R.id.cooldown_bed_button);
         temperatureGraph = view.findViewById(R.id.temperature_graph);
         filesRecyclerView = view.findViewById(R.id.files_recycler_view);
+        reconnectButton = view.findViewById(R.id.reconnect_button);
         cameraView = view.findViewById(R.id.camera_view);
         cameraStatusText = view.findViewById(R.id.camera_status_text);
         refreshCameraButton = view.findViewById(R.id.refresh_camera_button);
@@ -261,6 +263,21 @@ public class HomeFragment extends Fragment {
         });
 
         refreshCameraButton.setOnClickListener(v -> refreshCamera());
+
+        reconnectButton.setOnClickListener(v -> {
+            connectionStatusText.setText("Connecting…");
+            connectionIndicator.setBackgroundResource(android.R.drawable.presence_away);
+            reconnectButton.setEnabled(false);
+            PreferenceManager pm = new PreferenceManager(requireContext());
+            if (BuildConfig.ENABLE_MOCK_PRINTER && pm.isUseMock()) {
+                viewModel.connect("mock://printer", "");
+            } else if (pm.hasPrinterConfigured()) {
+                viewModel.connect(pm.getPrinterHost() + ":" + pm.getPrinterPort(), "");
+            } else {
+                Toast.makeText(getContext(), "No printer configured in Settings", Toast.LENGTH_SHORT).show();
+                reconnectButton.setEnabled(true);
+            }
+        });
     }
 
     private void observeViewModel() {
@@ -272,10 +289,17 @@ public class HomeFragment extends Fragment {
             if (connected) {
                 connectionStatusText.setText("Connected");
                 connectionIndicator.setBackgroundResource(android.R.drawable.presence_online);
+                reconnectButton.setVisibility(View.GONE);
+                reconnectButton.setEnabled(true);
+                setControlsEnabled(true);
                 viewModel.refreshFiles();
             } else {
                 connectionStatusText.setText("Disconnected");
                 connectionIndicator.setBackgroundResource(android.R.drawable.presence_offline);
+                reconnectButton.setVisibility(View.VISIBLE);
+                reconnectButton.setEnabled(true);
+                setControlsEnabled(false);
+                fileAdapter.setFiles(new java.util.ArrayList<>());
             }
         });
         viewModel.getError().observe(getViewLifecycleOwner(), error -> {
@@ -474,6 +498,23 @@ public class HomeFragment extends Fragment {
         } else {
             printFinishTimeText.setText("Finish: " + finishTime);
         }
+    }
+
+    private void setControlsEnabled(boolean enabled) {
+        heatNozzleButton.setEnabled(enabled);
+        cooldownNozzleButton.setEnabled(enabled);
+        heatBedButton.setEnabled(enabled);
+        cooldownBedButton.setEnabled(enabled);
+        homeAllButton.setEnabled(enabled);
+        moveXPlus.setEnabled(enabled);
+        moveXMinus.setEnabled(enabled);
+        moveYPlus.setEnabled(enabled);
+        moveYMinus.setEnabled(enabled);
+        moveZPlus.setEnabled(enabled);
+        moveZMinus.setEnabled(enabled);
+        pausePrintButton.setEnabled(enabled);
+        cancelPrintButton.setEnabled(enabled);
+        filesRecyclerView.setAlpha(enabled ? 1.0f : 0.4f);
     }
 
     @Override
