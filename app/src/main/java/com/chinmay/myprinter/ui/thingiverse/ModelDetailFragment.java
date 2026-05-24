@@ -433,18 +433,18 @@ public class ModelDetailFragment extends Fragment {
                 .setTitle("Slicing Complete!");
 
         if (pm.hasPrinterConfigured()) {
-            b.setMessage("G-code ready:\n" + fileName + "\n\nSend it to the printer?");
-            b.setPositiveButton("Send to Printer", (d, w) -> uploadGCode(gcodePath, fileName));
-            b.setNegativeButton("Save Only", null);
+            b.setMessage("G-code ready: " + fileName +
+                    "\n\nUpload to the printer and print now, or upload without starting?");
+            b.setPositiveButton("Print Now",  (d, w) -> uploadGCode(gcodePath, true));
+            b.setNegativeButton("Upload Only", (d, w) -> uploadGCode(gcodePath, false));
         } else {
-            b.setMessage("G-code saved:\n" + gcodePath +
-                    "\n\nConfigure a printer in Settings to send it.");
+            b.setMessage("Slicing complete. Configure a printer in Settings to upload.");
             b.setPositiveButton("OK", null);
         }
         b.show();
     }
 
-    private void uploadGCode(String gcodePath, String gcodeFileName) {
+    private void uploadGCode(String gcodePath, boolean startAfterUpload) {
         PreferenceManager pm = new PreferenceManager(requireContext());
         String printerUrl = "http://" + pm.getPrinterHost() + ":" + pm.getPrinterPort();
 
@@ -452,7 +452,7 @@ public class ModelDetailFragment extends Fragment {
         sliceButton.setText("Uploading…");
         showSliceProgress(true, 0, "Uploading to printer…");
 
-        GCodeUploader.upload(printerUrl, new java.io.File(gcodePath), true,
+        GCodeUploader.upload(printerUrl, new java.io.File(gcodePath), startAfterUpload,
                 new GCodeUploader.Callback() {
                     @Override
                     public void onSuccess(String filename) {
@@ -460,8 +460,10 @@ public class ModelDetailFragment extends Fragment {
                             showSliceProgress(false, 0, null);
                             sliceButton.setEnabled(true);
                             sliceButton.setText("Slice Selected Files");
-                            Toast.makeText(requireContext(),
-                                    "Sent to printer: " + filename, Toast.LENGTH_SHORT).show();
+                            String msg = startAfterUpload
+                                    ? "Printing: " + filename
+                                    : "Uploaded: " + filename;
+                            Toast.makeText(requireContext(), msg, Toast.LENGTH_SHORT).show();
                         });
                     }
 
