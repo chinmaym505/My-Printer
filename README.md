@@ -29,6 +29,12 @@
 *   **Image Loading**: `Glide` for file thumbnails.
 *   **Markdown Support**: `Markwon` for rendering G-Code metadata and logs.
 
+## ⚠️ Current Issues
+
+*   Temp graph timing is buggy
+*   Gcode list not updating
+*   Sliced gcode can't upload to Moonraker
+
 ## 📥 Installation
 
 1.  **Clone the repository**:
