@@ -4,10 +4,10 @@ import com.chinmay.myprinter.data.source.printer.moonraker.model.FileListRespons
 import com.chinmay.myprinter.data.source.printer.moonraker.model.MoonrakerResponse;
 import com.chinmay.myprinter.data.source.printer.moonraker.model.PrinterObjects;
 
+import java.util.List;
 import java.util.Map;
 
 import retrofit2.Call;
-import retrofit2.http.Body;
 import retrofit2.http.GET;
 import retrofit2.http.POST;
 import retrofit2.http.Query;
@@ -59,10 +59,11 @@ public interface MoonrakerApiService {
     Call<MoonrakerResponse<String>> cancelPrint();
 
     /**
-     * List G-code files in gcodes directory
+     * List G-code files in gcodes directory.
+     * Moonraker returns {"result": [{path, modified, size, permissions}, ...]}
      */
     @GET("server/files/list")
-    Call<MoonrakerResponse<FileListResponse>> listFiles(@Query("root") String root);
+    Call<MoonrakerResponse<List<FileListResponse.FileItem>>> listFiles(@Query("root") String root);
 
     /**
      * Emergency stop

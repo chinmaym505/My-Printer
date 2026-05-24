@@ -356,18 +356,16 @@ public class MoonrakerClient implements PrinterClient {
     public List<GCodeFile> listFiles() {
         if (apiService == null) return new ArrayList<>();
         try {
-            Response<MoonrakerResponse<FileListResponse>> response =
+            Response<MoonrakerResponse<List<FileListResponse.FileItem>>> response =
                     apiService.listFiles("gcodes").execute();
             if (response.isSuccessful() && response.body() != null
                     && response.body().isSuccess()) {
-                FileListResponse result = response.body().getResult();
-                if (result != null && result.getFiles() != null) {
+                List<FileListResponse.FileItem> items = response.body().getResult();
+                if (items != null) {
                     List<GCodeFile> files = new ArrayList<>();
-                    for (FileListResponse.FileItem item : result.getFiles()) {
-                        files.add(new GCodeFile(
-                                item.getFilename() != null ? item.getFilename() : item.getPath(),
-                                item.getSize(),
-                                item.getPath()));
+                    for (FileListResponse.FileItem item : items) {
+                        String name = item.getPath() != null ? item.getPath() : item.getFilename();
+                        files.add(new GCodeFile(name, item.getSize(), item.getPath()));
                     }
                     Log.d(TAG, "listFiles: " + files.size() + " files");
                     return files;
@@ -382,33 +380,33 @@ public class MoonrakerClient implements PrinterClient {
     }
 
     public void listFilesAsync(FileListCallback callback) {
-        apiService.listFiles("gcodes").enqueue(new Callback<MoonrakerResponse<FileListResponse>>() {
+        apiService.listFiles("gcodes").enqueue(
+                new Callback<MoonrakerResponse<List<FileListResponse.FileItem>>>() {
             @Override
-            public void onResponse(Call<MoonrakerResponse<FileListResponse>> call,
-                                   Response<MoonrakerResponse<FileListResponse>> response) {
-                if (response.isSuccessful() && response.body() != null && response.body().isSuccess()) {
-                    FileListResponse result = response.body().getResult();
-                    if (result != null && result.getFiles() != null) {
+            public void onResponse(
+                    Call<MoonrakerResponse<List<FileListResponse.FileItem>>> call,
+                    Response<MoonrakerResponse<List<FileListResponse.FileItem>>> response) {
+                if (response.isSuccessful() && response.body() != null
+                        && response.body().isSuccess()) {
+                    List<FileListResponse.FileItem> items = response.body().getResult();
+                    if (items != null) {
                         List<GCodeFile> files = new ArrayList<>();
-                        for (FileListResponse.FileItem item : result.getFiles()) {
-                            GCodeFile file = new GCodeFile(
-                                    item.getFilename() != null ? item.getFilename() : item.getPath(),
-                                    item.getSize(),
-                                    item.getPath()
-                            );
-                            files.add(file);
+                        for (FileListResponse.FileItem item : items) {
+                            String name = item.getPath() != null ? item.getPath() : item.getFilename();
+                            files.add(new GCodeFile(name, item.getSize(), item.getPath()));
                         }
                         callback.onSuccess(files);
                     } else {
                         callback.onError("No files found");
                     }
                 } else {
-                    callback.onError("Failed to list files");
+                    callback.onError("Failed to list files: HTTP " + response.code());
                 }
             }
 
             @Override
-            public void onFailure(Call<MoonrakerResponse<FileListResponse>> call, Throwable t) {
+            public void onFailure(Call<MoonrakerResponse<List<FileListResponse.FileItem>>> call,
+                                  Throwable t) {
                 callback.onError(t.getMessage());
             }
         });
