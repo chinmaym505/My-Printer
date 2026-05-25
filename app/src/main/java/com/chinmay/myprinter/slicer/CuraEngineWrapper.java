@@ -205,8 +205,8 @@ public class CuraEngineWrapper {
 
         // Temperatures
         cmd.add("-s"); cmd.add("material_print_temperature="         + (int)s.nozzleTemp);
-        cmd.add("-s"); cmd.add("material_print_temperature_layer_0=" + (int)(s.nozzleTemp + 5));
-        cmd.add("-s"); cmd.add("material_initial_print_temperature="  + (int)s.nozzleTemp);
+        cmd.add("-s"); cmd.add("material_print_temperature_layer_0=" + (int)s.nozzleTempLayer0);
+        cmd.add("-s"); cmd.add("material_initial_print_temperature="  + (int)s.nozzleTempLayer0);
         cmd.add("-s"); cmd.add("material_final_print_temperature="    + (int)s.nozzleTemp);
         cmd.add("-s"); cmd.add("material_bed_temperature="           + (int)s.bedTemp);
         cmd.add("-s"); cmd.add("material_bed_temperature_layer_0="   + (int)s.bedTemp);
@@ -271,7 +271,7 @@ public class CuraEngineWrapper {
         String startGcode = pm.getStartGcode();
         String endGcode = pm.getEndGcode();
 
-        int nozzleTempLayer0 = (int)(s.nozzleTemp + 5);
+        int nozzleTempLayer0 = (int)s.nozzleTempLayer0;
 
         if (!hasTemperatureControl(startGcode)) {
             startGcode = "M190 S" + (int)s.bedTemp + "\n" +

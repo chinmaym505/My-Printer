@@ -30,8 +30,9 @@ public class SlicerService extends Service {
     public static final String EXTRA_TRAVEL_SPEED = "travel_speed";
     public static final String EXTRA_INFILL_PCT   = "infill_percent";
     public static final String EXTRA_WALL_COUNT   = "wall_count";
-    public static final String EXTRA_NOZZLE_TEMP  = "nozzle_temp";
-    public static final String EXTRA_BED_TEMP     = "bed_temp";
+    public static final String EXTRA_NOZZLE_TEMP         = "nozzle_temp";
+    public static final String EXTRA_NOZZLE_TEMP_LAYER0  = "nozzle_temp_layer0";
+    public static final String EXTRA_BED_TEMP            = "bed_temp";
 
     public static final String ACTION_PROGRESS      = "com.chinmay.myprinter.SLICE_PROGRESS";
     public static final String EXTRA_PROGRESS_PCT   = "progress_pct";
@@ -74,8 +75,9 @@ public class SlicerService extends Service {
         s.travelSpeed    = intent.getFloatExtra(EXTRA_TRAVEL_SPEED, 150.0f);
         s.infillPercent  = intent.getIntExtra  (EXTRA_INFILL_PCT,   20);
         s.wallCount      = intent.getIntExtra  (EXTRA_WALL_COUNT,   2);
-        s.nozzleTemp     = intent.getFloatExtra(EXTRA_NOZZLE_TEMP,  200.0f);
-        s.bedTemp        = intent.getFloatExtra(EXTRA_BED_TEMP,     60.0f);
+        s.nozzleTemp       = intent.getFloatExtra(EXTRA_NOZZLE_TEMP,        200.0f);
+        s.nozzleTempLayer0 = intent.getFloatExtra(EXTRA_NOZZLE_TEMP_LAYER0, s.nozzleTemp + 5);
+        s.bedTemp          = intent.getFloatExtra(EXTRA_BED_TEMP,           60.0f);
 
         String label = fileName != null ? fileName : "model";
         startForeground(NOTIF_ID, buildNotif(label, 0, "Starting…"));

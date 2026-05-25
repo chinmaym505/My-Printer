@@ -7,7 +7,8 @@ public class SlicerSettings {
     public float travelSpeed    = 150.0f;
     public int   infillPercent  = 20;
     public int   wallCount      = 2;
-    public float nozzleTemp       = 220.0f;
-    public float bedTemp          = 80.0f;
+    public float nozzleTemp        = 220.0f;
+    public float nozzleTempLayer0  = 220.0f;
+    public float bedTemp           = 80.0f;
     public float retractionAmount = 1.0f;
 }
