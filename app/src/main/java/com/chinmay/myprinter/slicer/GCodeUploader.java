@@ -1,5 +1,8 @@
 package com.chinmay.myprinter.slicer;
 
+import android.content.Context;
+import android.content.Intent;
+
 import java.io.File;
 import java.io.IOException;
 import java.util.concurrent.ExecutorService;
@@ -28,7 +31,7 @@ public class GCodeUploader {
             .build();
 
     public static void upload(String printerBaseUrl, File gcodeFile,
-                              boolean startAfterUpload, Callback callback) {
+                              boolean startAfterUpload, Context context, Callback callback) {
         executor.execute(() -> {
             try {
                 String base = printerBaseUrl.endsWith("/")
@@ -69,6 +72,11 @@ public class GCodeUploader {
                         }
                     }
                 }
+
+                // Broadcast so HomeFragment knows to refresh the file list
+                Intent filesChanged = new Intent(SlicerService.ACTION_FILES_CHANGED);
+                filesChanged.setPackage(context.getPackageName());
+                context.sendBroadcast(filesChanged);
 
                 callback.onSuccess(gcodeFile.getName());
             } catch (IOException e) {

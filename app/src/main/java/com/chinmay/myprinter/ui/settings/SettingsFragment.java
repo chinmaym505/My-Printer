@@ -25,9 +25,13 @@ public class SettingsFragment extends Fragment {
     private TextInputEditText portInput;
     private TextInputEditText cameraUrlInput;
     private TextInputEditText thingiverseTokenInput;
+    private TextInputEditText startGcodeInput;
+    private TextInputEditText endGcodeInput;
     private SwitchMaterial mockModeSwitch;
     private Button testConnectionButton;
     private Button saveSettingsButton;
+    private Button saveGcodeButton;
+    private Button resetGcodeButton;
     private TextView connectionStatusLabel;
 
     private PreferenceManager preferenceManager;
@@ -53,9 +57,13 @@ public class SettingsFragment extends Fragment {
         portInput = view.findViewById(R.id.printer_port_input);
         cameraUrlInput = view.findViewById(R.id.camera_url_input);
         thingiverseTokenInput = view.findViewById(R.id.thingiverse_token_input);
+        startGcodeInput = view.findViewById(R.id.start_gcode_input);
+        endGcodeInput = view.findViewById(R.id.end_gcode_input);
         mockModeSwitch = view.findViewById(R.id.mock_mode_switch);
         testConnectionButton = view.findViewById(R.id.test_connection_button);
         saveSettingsButton = view.findViewById(R.id.save_settings_button);
+        saveGcodeButton = view.findViewById(R.id.save_gcode_button);
+        resetGcodeButton = view.findViewById(R.id.reset_gcode_button);
         connectionStatusLabel = view.findViewById(R.id.connection_status_label);
 
         // Hide mock mode switch in release builds
@@ -85,11 +93,17 @@ public class SettingsFragment extends Fragment {
         }
 
         mockModeSwitch.setChecked(useMock);
+
+        startGcodeInput.setText(preferenceManager.getStartGcode());
+        endGcodeInput.setText(preferenceManager.getEndGcode());
     }
 
     private void setupClickListeners() {
         testConnectionButton.setOnClickListener(v -> testConnection());
         saveSettingsButton.setOnClickListener(v -> saveAndConnect());
+
+        saveGcodeButton.setOnClickListener(v -> saveGcodeScripts());
+        resetGcodeButton.setOnClickListener(v -> resetGcodeScripts());
 
         mockModeSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
             // Enable/disable host and port inputs based on mock mode
@@ -97,6 +111,24 @@ public class SettingsFragment extends Fragment {
             portInput.setEnabled(!isChecked);
             testConnectionButton.setEnabled(!isChecked);
         });
+    }
+
+    private void saveGcodeScripts() {
+        String startGcode = startGcodeInput.getText() != null
+                ? startGcodeInput.getText().toString() : "";
+        String endGcode = endGcodeInput.getText() != null
+                ? endGcodeInput.getText().toString() : "";
+        preferenceManager.setStartGcode(startGcode);
+        preferenceManager.setEndGcode(endGcode);
+        Toast.makeText(getContext(), "G-code scripts saved", Toast.LENGTH_SHORT).show();
+    }
+
+    private void resetGcodeScripts() {
+        startGcodeInput.setText(PreferenceManager.DEFAULT_START_GCODE);
+        endGcodeInput.setText(PreferenceManager.DEFAULT_END_GCODE);
+        preferenceManager.setStartGcode(PreferenceManager.DEFAULT_START_GCODE);
+        preferenceManager.setEndGcode(PreferenceManager.DEFAULT_END_GCODE);
+        Toast.makeText(getContext(), "G-code scripts reset to defaults", Toast.LENGTH_SHORT).show();
     }
 
     private void testConnection() {

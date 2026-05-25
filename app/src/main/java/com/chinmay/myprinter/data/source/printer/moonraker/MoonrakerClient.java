@@ -425,10 +425,16 @@ public class MoonrakerClient implements PrinterClient {
 
     @Override
     public void deleteFile(String filename, CommandCallback callback) {
+        if (apiService == null) {
+            callback.onError("Not connected");
+            return;
+        }
         apiService.deleteFile(filename).enqueue(new retrofit2.Callback<okhttp3.ResponseBody>() {
             @Override
             public void onResponse(retrofit2.Call<okhttp3.ResponseBody> call,
                                    retrofit2.Response<okhttp3.ResponseBody> response) {
+                // Always close the body to release the OkHttp connection back to the pool
+                if (response.body() != null) response.body().close();
                 if (response.isSuccessful()) {
                     callback.onSuccess();
                 } else {

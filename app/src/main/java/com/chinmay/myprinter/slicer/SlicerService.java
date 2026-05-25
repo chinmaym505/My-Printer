@@ -37,6 +37,8 @@ public class SlicerService extends Service {
     public static final String EXTRA_PROGRESS_PCT   = "progress_pct";
     public static final String EXTRA_PROGRESS_STAGE = "progress_stage";
 
+    public static final String ACTION_FILES_CHANGED = "com.chinmay.myprinter.FILES_CHANGED";
+
     private static final String TAG         = "SlicerService";
     private static final String CHANNEL_ID  = "slicer";
     private static final int    NOTIF_ID    = 2001;

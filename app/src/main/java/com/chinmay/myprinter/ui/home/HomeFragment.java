@@ -1,6 +1,11 @@
 package com.chinmay.myprinter.ui.home;
 
 import android.app.AlertDialog;
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -25,6 +30,7 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.chinmay.myprinter.BuildConfig;
 import com.chinmay.myprinter.R;
+import com.chinmay.myprinter.slicer.SlicerService;
 import com.chinmay.myprinter.data.model.PrinterState;
 import com.chinmay.myprinter.data.model.PrinterStatus;
 import com.chinmay.myprinter.data.repository.PrinterRepository;
@@ -86,6 +92,7 @@ public class HomeFragment extends Fragment {
     private TemperatureGraphView temperatureGraph;
     private RecyclerView filesRecyclerView;
     private Button reconnectButton;
+    private BroadcastReceiver filesChangedReceiver;
     private CameraView cameraView;
     private TextView cameraStatusText;
     private Button refreshCameraButton;
@@ -530,8 +537,20 @@ public class HomeFragment extends Fragment {
     public void onResume() {
         super.onResume();
         refreshCamera();
-        if (viewModel != null && viewModel.isConnected()) {
-            viewModel.refreshFiles();
+        if (viewModel != null) viewModel.refreshFiles();
+
+        filesChangedReceiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context ctx, Intent intent) {
+                if (viewModel != null) viewModel.refreshFiles();
+            }
+        };
+        IntentFilter filter = new IntentFilter(SlicerService.ACTION_FILES_CHANGED);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            requireContext().registerReceiver(filesChangedReceiver, filter,
+                    Context.RECEIVER_NOT_EXPORTED);
+        } else {
+            requireContext().registerReceiver(filesChangedReceiver, filter);
         }
     }
 
@@ -539,7 +558,11 @@ public class HomeFragment extends Fragment {
     public void onPause() {
         super.onPause();
 
-        // Save graph data
+        if (filesChangedReceiver != null) {
+            try { requireContext().unregisterReceiver(filesChangedReceiver); } catch (Exception ignored) {}
+            filesChangedReceiver = null;
+        }
+
         if (temperatureGraph != null) {
             saveGraphData();
         }

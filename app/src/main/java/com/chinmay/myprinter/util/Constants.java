@@ -12,8 +12,8 @@ public class Constants {
     public static final float BUILD_VOLUME_Z = 250f;
 
     // Temperature defaults
-    public static final int DEFAULT_NOZZLE_TEMP = 200;
-    public static final int DEFAULT_BED_TEMP = 60;
+    public static final int DEFAULT_NOZZLE_TEMP = 220;
+    public static final int DEFAULT_BED_TEMP = 70;
 
     // File paths
     public static final String GCODE_DIR = "gcodes";

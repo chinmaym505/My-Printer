@@ -453,7 +453,7 @@ public class ModelDetailFragment extends Fragment {
         showSliceProgress(true, 0, "Uploading to printer…");
 
         GCodeUploader.upload(printerUrl, new java.io.File(gcodePath), startAfterUpload,
-                new GCodeUploader.Callback() {
+                requireContext(), new GCodeUploader.Callback() {
                     @Override
                     public void onSuccess(String filename) {
                         requireActivity().runOnUiThread(() -> {
