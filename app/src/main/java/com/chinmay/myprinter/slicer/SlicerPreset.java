@@ -13,18 +13,21 @@ public class SlicerPreset {
 
     public static SlicerPreset[] getPresets() {
         SlicerSettings draft = new SlicerSettings();
-        draft.layerHeight = 0.28f;
-        draft.printSpeed  = 60.0f;
-        draft.infillPercent = 15;
-        draft.nozzleTemp  = 205.0f;
+        draft.layerHeight     = 0.28f;
+        draft.printSpeed      = 60.0f;
+        draft.infillPercent   = 15;
+        draft.nozzleTemp      = 205.0f;
+        draft.nozzleTempLayer0 = 205.0f;
 
         SlicerSettings std = new SlicerSettings();
-        // std has defaults (0.20mm, 50mm/s, 20%, 200°C)
+        std.nozzleTemp       = 220.0f;
+        std.nozzleTempLayer0 = 220.0f;
 
         SlicerSettings hd = new SlicerSettings();
-        hd.layerHeight   = 0.12f;
-        hd.printSpeed    = 40.0f;
-        hd.infillPercent = 25;
+        hd.layerHeight      = 0.12f;
+        hd.printSpeed       = 40.0f;
+        hd.infillPercent    = 25;
+
 
         return new SlicerPreset[]{
             new SlicerPreset("Draft — Fast",    "0.28mm · 15% infill · ~60 mm/s", draft),

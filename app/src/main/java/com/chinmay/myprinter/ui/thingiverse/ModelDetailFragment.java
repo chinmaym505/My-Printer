@@ -358,8 +358,9 @@ public class ModelDetailFragment extends Fragment {
         intent.putExtra(SlicerService.EXTRA_TRAVEL_SPEED, preset.settings.travelSpeed);
         intent.putExtra(SlicerService.EXTRA_INFILL_PCT,   preset.settings.infillPercent);
         intent.putExtra(SlicerService.EXTRA_WALL_COUNT,   preset.settings.wallCount);
-        intent.putExtra(SlicerService.EXTRA_NOZZLE_TEMP,  preset.settings.nozzleTemp);
-        intent.putExtra(SlicerService.EXTRA_BED_TEMP,     preset.settings.bedTemp);
+        intent.putExtra(SlicerService.EXTRA_NOZZLE_TEMP,        preset.settings.nozzleTemp);
+        intent.putExtra(SlicerService.EXTRA_NOZZLE_TEMP_LAYER0, preset.settings.nozzleTempLayer0);
+        intent.putExtra(SlicerService.EXTRA_BED_TEMP,           preset.settings.bedTemp);
         requireContext().startForegroundService(intent);
     }
 
