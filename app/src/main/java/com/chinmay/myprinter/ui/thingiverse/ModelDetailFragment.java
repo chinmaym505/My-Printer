@@ -361,6 +361,7 @@ public class ModelDetailFragment extends Fragment {
         intent.putExtra(SlicerService.EXTRA_NOZZLE_TEMP,        preset.settings.nozzleTemp);
         intent.putExtra(SlicerService.EXTRA_NOZZLE_TEMP_LAYER0, preset.settings.nozzleTempLayer0);
         intent.putExtra(SlicerService.EXTRA_BED_TEMP,           preset.settings.bedTemp);
+        intent.putExtra(SlicerService.EXTRA_RETRACTION_AMOUNT,  preset.settings.retractionAmount);
         requireContext().startForegroundService(intent);
     }
 
