@@ -197,11 +197,12 @@ public class CuraEngineWrapper {
         // Quality settings
         cmd.add("-s"); cmd.add("layer_height="            + s.layerHeight);
         cmd.add("-s"); cmd.add("layer_height_0="          + Math.max(s.layerHeight, 0.28f));
-        cmd.add("-s"); cmd.add("wall_line_count="          + s.wallCount);
+        cmd.add("-s"); cmd.add("wall_line_count="         + s.wallCount);
         cmd.add("-s"); cmd.add("top_layers="              + topBottomLayers(s.layerHeight));
-        cmd.add("-s"); cmd.add("bottom_layers="           + topBottomLayers(s.layerHeight));
+        cmd.add("-s"); cmd.add("bottom_layers="           + (s.bottomLayers > 0 ? s.bottomLayers : topBottomLayers(s.layerHeight)));
         cmd.add("-s"); cmd.add("infill_sparse_density="   + s.infillPercent);
-        cmd.add("-s"); cmd.add("infill_pattern=lines");
+        cmd.add("-s"); cmd.add("infill_pattern="          + s.infillPattern);
+        cmd.add("-s"); cmd.add("inset_direction="         + s.insetDirection);
 
         // Temperatures
         cmd.add("-s"); cmd.add("material_print_temperature="         + (int)s.nozzleTemp);
@@ -211,22 +212,29 @@ public class CuraEngineWrapper {
         cmd.add("-s"); cmd.add("material_bed_temperature="           + (int)s.bedTemp);
         cmd.add("-s"); cmd.add("material_bed_temperature_layer_0="   + (int)s.bedTemp);
 
+        // Flow
+        cmd.add("-s"); cmd.add("material_flow="         + s.materialFlow);
+        cmd.add("-s"); cmd.add("material_flow_layer_0=" + s.materialFlowLayer0);
+
         // Speeds
+        int wall0Speed = s.speedWall0 > 0 ? (int)s.speedWall0 : (int)(s.printSpeed * 0.6f);
         cmd.add("-s"); cmd.add("speed_print="           + (int)s.printSpeed);
         cmd.add("-s"); cmd.add("speed_travel="          + (int)s.travelSpeed);
-        cmd.add("-s"); cmd.add("speed_layer_0="         + "25");
-        cmd.add("-s"); cmd.add("speed_print_layer_0="   + "25");
+        cmd.add("-s"); cmd.add("speed_layer_0="         + (int)s.speedLayer0);
+        cmd.add("-s"); cmd.add("speed_print_layer_0="   + (int)s.speedLayer0);
         cmd.add("-s"); cmd.add("speed_travel_layer_0="  + "100");
         cmd.add("-s"); cmd.add("speed_infill="          + (int)(s.printSpeed * 1.2f));
-        cmd.add("-s"); cmd.add("speed_wall_0="          + (int)(s.printSpeed * 0.6f));
+        cmd.add("-s"); cmd.add("speed_wall_0="          + wall0Speed);
         cmd.add("-s"); cmd.add("speed_wall_x="          + (int)(s.printSpeed * 0.8f));
         cmd.add("-s"); cmd.add("speed_topbottom="       + (int)(s.printSpeed * 0.8f));
 
         // Retraction
         cmd.add("-s"); cmd.add("retraction_enable=true");
-        cmd.add("-s"); cmd.add("retraction_amount=" + s.retractionAmount);
+        cmd.add("-s"); cmd.add("retraction_amount="             + s.retractionAmount);
         cmd.add("-s"); cmd.add("retraction_speed=45");
-        cmd.add("-s"); cmd.add("retraction_combing=noskin");
+        cmd.add("-s"); cmd.add("retraction_combing="            + s.retractionCombing);
+        cmd.add("-s"); cmd.add("retraction_hop_enabled="        + s.retractionHopEnabled);
+        cmd.add("-s"); cmd.add("retraction_extrusion_window="   + s.retractionExtrusionWindow);
 
         // Cooling
         cmd.add("-s"); cmd.add("cool_fan_enabled=true");
@@ -234,14 +242,20 @@ public class CuraEngineWrapper {
         cmd.add("-s"); cmd.add("cool_fan_speed_0=0");
         cmd.add("-s"); cmd.add("cool_min_layer_time=10");
 
+        // Surface quality
+        cmd.add("-s"); cmd.add("ironing_enabled="       + s.ironingEnabled);
+        cmd.add("-s"); cmd.add("ironing_monotonic="     + s.ironingMonotonic);
+        cmd.add("-s"); cmd.add("roofing_layer_count="   + s.roofingLayerCount);
+        cmd.add("-s"); cmd.add("roofing_material_flow=" + s.roofingMaterialFlow);
+
         // Adhesion
-        cmd.add("-s"); cmd.add("adhesion_type=none");
+        cmd.add("-s"); cmd.add("adhesion_type="         + s.adhesionType);
 
         // Supports
         cmd.add("-s"); cmd.add("support_enable=false");
 
-        // Speed — mesh simplification (major slicer compute saving)
-        cmd.add("-s"); cmd.add("meshfix_maximum_resolution=0.5");
+        // Mesh simplification
+        cmd.add("-s"); cmd.add("meshfix_maximum_resolution=" + s.meshfixMaxResolution);
         cmd.add("-s"); cmd.add("meshfix_maximum_deviation=0.1");
 
         // Skip expensive gap-fill and avoid-other-parts travel planning
@@ -249,8 +263,9 @@ public class CuraEngineWrapper {
         cmd.add("-s"); cmd.add("travel_avoid_other_parts=false");
         cmd.add("-s"); cmd.add("travel_avoid_supports=false");
 
-        // Seam: back wall is fastest to compute (no corner analysis)
-        cmd.add("-s"); cmd.add("z_seam_type=back");
+        // Seam
+        cmd.add("-s"); cmd.add("z_seam_type="   + s.zSeamType);
+        cmd.add("-s"); cmd.add("z_seam_corner=" + s.zSeamCorner);
 
         // Extruder 0: base extruder defaults, then model
         cmd.add("-e0");
