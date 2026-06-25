@@ -373,6 +373,7 @@ public class MoonrakerClient implements PrinterClient {
                     && response.body().isSuccess()) {
                 List<FileListResponse.FileItem> items = response.body().getResult();
                 if (items != null) {
+                    items.sort((a, b) -> Double.compare(b.getModified(), a.getModified()));
                     List<GCodeFile> files = new ArrayList<>();
                     for (FileListResponse.FileItem item : items) {
                         String name = item.getPath() != null ? item.getPath() : item.getFilename();
@@ -401,6 +402,7 @@ public class MoonrakerClient implements PrinterClient {
                         && response.body().isSuccess()) {
                     List<FileListResponse.FileItem> items = response.body().getResult();
                     if (items != null) {
+                        items.sort((a, b) -> Double.compare(b.getModified(), a.getModified()));
                         List<GCodeFile> files = new ArrayList<>();
                         for (FileListResponse.FileItem item : items) {
                             String name = item.getPath() != null ? item.getPath() : item.getFilename();

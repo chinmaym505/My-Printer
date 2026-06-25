@@ -7,12 +7,16 @@ import com.chinmay.myprinter.util.PreferenceManager;
 
 import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
+import java.io.OutputStreamWriter;
+import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
+import java.util.Locale;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -36,6 +40,7 @@ public class CuraEngineWrapper {
     private final AtomicInteger progress  = new AtomicInteger(0);
     private final AtomicBoolean cancelled = new AtomicBoolean(false);
     private Process process;
+    private volatile boolean shouldStripPreheat = false;
 
     public CuraEngineWrapper(Context context) {
         this.context = context.getApplicationContext();
@@ -57,11 +62,11 @@ public class CuraEngineWrapper {
 
             File fdmPrinter = extractAssetIfMissing("cura_settings/fdmprinter.def.json",
                                                    "cura_settings/fdmprinter.def.json");
-            if (fdmPrinter == null) return "fdmprinter.def.json not found.\nRun: curl -s https://raw.githubusercontent.com/Ultimaker/Cura/4.13.1/resources/definitions/fdmprinter.def.json -o app/src/main/assets/cura_settings/fdmprinter.def.json";
+            if (fdmPrinter == null) return "fdmprinter.def.json not found.\nRun: curl -s https://raw.githubusercontent.com/Ultimaker/Cura/5.11.0/resources/definitions/fdmprinter.def.json -o app/src/main/assets/cura_settings/fdmprinter.def.json";
 
             File fdmExtruder = extractAssetIfMissing("cura_settings/fdmextruder.def.json",
                                                      "cura_settings/fdmextruder.def.json");
-            if (fdmExtruder == null) return "fdmextruder.def.json not found.\nRun: curl -s https://raw.githubusercontent.com/Ultimaker/Cura/4.13.1/resources/definitions/fdmextruder.def.json -o app/src/main/assets/cura_settings/fdmextruder.def.json";
+            if (fdmExtruder == null) return "fdmextruder.def.json not found.\nRun: curl -s https://raw.githubusercontent.com/Ultimaker/Cura/5.11.0/resources/definitions/fdmextruder.def.json -o app/src/main/assets/cura_settings/fdmextruder.def.json";
 
             File machineSettings = extractAssetIfMissing("cura_settings/ender3.def.json",
                                                          "cura_settings/ender3.def.json");
@@ -122,6 +127,9 @@ public class CuraEngineWrapper {
                 return "CuraEngine finished but no G-code file was produced.";
             }
 
+            if (shouldStripPreheat) stripCuraEnginePreheat(outputGcodePath);
+            fixFilamentUsedHeader(outputGcodePath);
+
             progress.set(100);
             return null; // success
 
@@ -156,7 +164,15 @@ public class CuraEngineWrapper {
 
     private File extractAssetIfMissing(String assetPath, String destRelPath) {
         File dest = new File(context.getFilesDir(), destRelPath);
-        if (dest.exists() && dest.length() > 0) return dest;
+        if (dest.exists() && dest.length() > 0) {
+            // Re-extract if the bundled asset changed size (e.g. updated def.json)
+            try {
+                android.content.res.AssetFileDescriptor afd = context.getAssets().openFd(assetPath);
+                long assetSize = afd.getLength();
+                afd.close();
+                if (dest.length() == assetSize) return dest;
+            } catch (IOException ignored) { }
+        }
         return extractAsset(assetPath, destRelPath);
     }
 
@@ -183,6 +199,7 @@ public class CuraEngineWrapper {
         cmd.add(binary.getAbsolutePath());
         cmd.add("slice");
         cmd.add("-p");
+        cmd.add("--force-read-parent"); // load values of settings that have child-settings
 
         // Global: all FDM defaults, then Ender 3 machine overrides
         cmd.add("-j"); cmd.add(fdmPrinter.getAbsolutePath());
@@ -211,6 +228,11 @@ public class CuraEngineWrapper {
         cmd.add("-s"); cmd.add("material_final_print_temperature="    + (int)s.nozzleTemp);
         cmd.add("-s"); cmd.add("material_bed_temperature="           + (int)s.bedTemp);
         cmd.add("-s"); cmd.add("material_bed_temperature_layer_0="   + (int)s.bedTemp);
+
+        // Material properties (no material profile loaded, provide defaults for PLA)
+        cmd.add("-s"); cmd.add("material_shrinkage_percentage_xy=100");
+        cmd.add("-s"); cmd.add("material_shrinkage_percentage_z=100");
+        cmd.add("-s"); cmd.add("material_shrinkage_percentage=100");
 
         // Flow
         cmd.add("-s"); cmd.add("material_flow="         + s.materialFlow);
@@ -241,6 +263,11 @@ public class CuraEngineWrapper {
         cmd.add("-s"); cmd.add("cool_fan_speed=100");
         cmd.add("-s"); cmd.add("cool_fan_speed_0=0");
         cmd.add("-s"); cmd.add("cool_min_layer_time=10");
+        // fdmprinter.def.json sets cool_min_temperature via a Python "value" expression
+        // ("material_print_temperature") that CuraEngine never evaluates — it falls back
+        // to default_value=0, which causes M104 commands that ramp toward 0°C on fast
+        // layers.  Pin it to the nozzle temp so CuraEngine never lowers temperature.
+        cmd.add("-s"); cmd.add("cool_min_temperature=" + (int)s.nozzleTemp);
 
         // Surface quality
         cmd.add("-s"); cmd.add("ironing_enabled="       + s.ironingEnabled);
@@ -270,6 +297,9 @@ public class CuraEngineWrapper {
         // Extruder 0: base extruder defaults, then model
         cmd.add("-e0");
         cmd.add("-j"); cmd.add(fdmExtruder.getAbsolutePath());
+        // fdmextruder.def.json defaults to 2.85mm filament (Ultimaker standard).
+        // Override here in the extruder context so CuraEngine calculates correct E values.
+        cmd.add("-s"); cmd.add("material_diameter=1.75");
         cmd.add("-l"); cmd.add(stlPath);
         cmd.add("-o"); cmd.add(gcodePath);
 
@@ -287,6 +317,10 @@ public class CuraEngineWrapper {
         String endGcode = pm.getEndGcode();
 
         int nozzleTempLayer0 = (int)s.nozzleTempLayer0;
+
+        // If the user's start G-code already handles temperature (via macros or explicit
+        // M109/M190), we will strip CuraEngine's auto-generated preheat block from the output.
+        shouldStripPreheat = hasTemperatureControl(startGcode);
 
         if (!hasTemperatureControl(startGcode)) {
             startGcode = "M190 S" + (int)s.bedTemp + "\n" +
@@ -335,11 +369,120 @@ public class CuraEngineWrapper {
                gcodeTemplate.contains("M140 ");
     }
 
+    // Strip the M140/M105/M190/M104/M105/M109 block that CuraEngine writes before
+    // machine_start_gcode when bed/nozzle temperatures are non-zero.  We only call
+    // this when the user's start G-code already handles heating itself, so that block
+    // is redundant.  Strategy: drop any preheat lines that appear before the first
+    // real (non-comment, non-preheat) G-code line; everything from that line onward
+    // is kept verbatim.
+    private void stripCuraEnginePreheat(String gcodePath) {
+        File gcodeFile = new File(gcodePath);
+        if (!gcodeFile.exists()) return;
+
+        File tmp = new File(gcodePath + ".pre.tmp");
+        boolean preheatZoneDone = false;
+
+        try (BufferedReader r = new BufferedReader(
+                     new InputStreamReader(new FileInputStream(gcodeFile), StandardCharsets.UTF_8));
+             PrintWriter w = new PrintWriter(
+                     new OutputStreamWriter(new FileOutputStream(tmp), StandardCharsets.UTF_8))) {
+            String line;
+            while ((line = r.readLine()) != null) {
+                if (preheatZoneDone) {
+                    w.println(line);
+                    continue;
+                }
+                String t = line.trim();
+                if (t.isEmpty() || t.charAt(0) == ';') {
+                    w.println(line); // header comment — keep, stay in preheat zone
+                } else if (isPreheatLine(t)) {
+                    // silently drop CuraEngine-generated preheat command
+                } else {
+                    preheatZoneDone = true; // machine_start_gcode begins here
+                    w.println(line);
+                }
+            }
+        } catch (IOException e) {
+            tmp.delete();
+            Log.e(TAG, "stripCuraEnginePreheat failed: " + e.getMessage());
+            return;
+        }
+
+        if (!gcodeFile.delete() || !tmp.renameTo(gcodeFile)) {
+            tmp.delete();
+            Log.e(TAG, "stripCuraEnginePreheat: could not replace file");
+        }
+    }
+
+    private static boolean isPreheatLine(String t) {
+        // Strip inline comment before checking
+        int semi = t.indexOf(';');
+        String cmd = (semi >= 0 ? t.substring(0, semi) : t).trim();
+        if (cmd.equals("T0")) return true;
+        if (!cmd.startsWith("M")) return false;
+        String word = cmd.contains(" ") ? cmd.substring(0, cmd.indexOf(' ')) : cmd;
+        return word.equals("M140") || word.equals("M104") ||
+               word.equals("M190") || word.equals("M109") ||
+               word.equals("M105");
+    }
+
     private String escapeJsonString(String s) {
         return s.replace("\\", "\\\\")
                 .replace("\"", "\\\"")
                 .replace("\n", "\\n")
                 .replace("\r", "\\r")
                 .replace("\t", "\\t");
+    }
+
+    // CuraEngine writes ";Filament used: 0m" in the header before slicing and never
+    // seeks back to update it. Walk the G-code once to find the peak E value, then
+    // rewrite the file replacing that one line.
+    private void fixFilamentUsedHeader(String gcodePath) {
+        File gcodeFile = new File(gcodePath);
+        if (!gcodeFile.exists()) return;
+
+        float maxE = 0f;
+        // Match the E parameter on any G-code word line (not inside comments)
+        Pattern eVal = Pattern.compile("(?<![A-Za-z])E(-?[0-9]+(?:\\.[0-9]+)?)");
+
+        try {
+            // Pass 1: find peak positive E value
+            try (BufferedReader r = new BufferedReader(
+                    new InputStreamReader(new FileInputStream(gcodeFile), StandardCharsets.UTF_8))) {
+                String line;
+                while ((line = r.readLine()) != null) {
+                    if (line.isEmpty() || line.charAt(0) == ';') continue;
+                    Matcher m = eVal.matcher(line);
+                    while (m.find()) {
+                        float e = Float.parseFloat(m.group(1));
+                        if (e > maxE) maxE = e;
+                    }
+                }
+            }
+
+            if (maxE <= 0f) return;
+
+            String fixed = String.format(Locale.US, ";Filament used: %.5fm", maxE / 1000f);
+
+            // Pass 2: stream-rewrite so we never load the whole file into RAM
+            File tmp = new File(gcodePath + ".tmp");
+            try (BufferedReader r = new BufferedReader(
+                         new InputStreamReader(new FileInputStream(gcodeFile), StandardCharsets.UTF_8));
+                 PrintWriter w = new PrintWriter(
+                         new OutputStreamWriter(new FileOutputStream(tmp), StandardCharsets.UTF_8))) {
+                String line;
+                while ((line = r.readLine()) != null) {
+                    w.println(line.startsWith(";Filament used:") ? fixed : line);
+                }
+            }
+
+            if (!gcodeFile.delete() || !tmp.renameTo(gcodeFile)) {
+                tmp.delete();
+                Log.e(TAG, "fixFilamentUsedHeader: could not replace output file");
+            }
+
+        } catch (IOException e) {
+            Log.e(TAG, "fixFilamentUsedHeader failed: " + e.getMessage());
+        }
     }
 }

@@ -3,6 +3,5 @@
   <component name="VcsDirectoryMappings">
     <mapping directory="$PROJECT_DIR$" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/scripts/cura_build/CuraEngine" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/scripts/cura_build/CuraEngine/build_android/stb-prefix/src/stb" vcs="Git" />
   </component>
 </project>
