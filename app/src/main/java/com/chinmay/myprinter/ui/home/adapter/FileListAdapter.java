@@ -16,7 +16,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class FileListAdapter extends RecyclerView.Adapter<FileListAdapter.FileViewHolder> {
-    private List<GCodeFile> files;
+    private List<GCodeFile> allFiles = new ArrayList<>();
+    private List<GCodeFile> files    = new ArrayList<>();
     private OnFileClickListener listener;
     private OnFileDeleteListener deleteListener;
 
@@ -41,7 +42,21 @@ public class FileListAdapter extends RecyclerView.Adapter<FileListAdapter.FileVi
     }
 
     public void setFiles(List<GCodeFile> files) {
-        this.files = files != null ? files : new ArrayList<>();
+        this.allFiles = files != null ? new ArrayList<>(files) : new ArrayList<>();
+        this.files    = new ArrayList<>(this.allFiles);
+        notifyDataSetChanged();
+    }
+
+    public void filter(String query) {
+        if (query == null || query.trim().isEmpty()) {
+            files = new ArrayList<>(allFiles);
+        } else {
+            String q = query.toLowerCase().trim();
+            files = new ArrayList<>();
+            for (GCodeFile f : allFiles) {
+                if (f.getFilename().toLowerCase().contains(q)) files.add(f);
+            }
+        }
         notifyDataSetChanged();
     }
 

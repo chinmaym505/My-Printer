@@ -21,6 +21,7 @@ public class PrinterRepository {
     private final MutableLiveData<String> errorLiveData;
     private final MutableLiveData<Boolean> connectionLiveData;
     private final MutableLiveData<List<MoonrakerClient.TemperatureHistoryPoint>> temperatureHistoryLiveData;
+    private final MutableLiveData<String> thumbnailUrlLiveData;
 
     private final CombinedListener combinedListener = new CombinedListener();
 
@@ -31,13 +32,14 @@ public class PrinterRepository {
         this.errorLiveData = new MutableLiveData<>();
         this.connectionLiveData = new MutableLiveData<>(false);
         this.temperatureHistoryLiveData = new MutableLiveData<>();
+        this.thumbnailUrlLiveData = new MutableLiveData<>();
 
         // Add combined listener
         printerClient.addStatusListener(combinedListener);
     }
 
-    // Combined listener that implements both interfaces
-    private class CombinedListener implements PrinterStatusListener, MoonrakerClient.TemperatureHistoryListener {
+    private class CombinedListener implements PrinterStatusListener,
+            MoonrakerClient.TemperatureHistoryListener, MoonrakerClient.ThumbnailListener {
         @Override
         public void onStatusUpdate(PrinterStatus status) {
             statusLiveData.postValue(status);
@@ -46,6 +48,11 @@ public class PrinterRepository {
         @Override
         public void onTemperatureHistory(List<MoonrakerClient.TemperatureHistoryPoint> history) {
             temperatureHistoryLiveData.postValue(history);
+        }
+
+        @Override
+        public void onThumbnailUrl(String url) {
+            thumbnailUrlLiveData.postValue(url);
         }
     }
 
@@ -67,6 +74,10 @@ public class PrinterRepository {
 
     public LiveData<List<MoonrakerClient.TemperatureHistoryPoint>> getTemperatureHistory() {
         return temperatureHistoryLiveData;
+    }
+
+    public LiveData<String> getThumbnailUrl() {
+        return thumbnailUrlLiveData;
     }
 
     public void connect(String url, String apiKey) {

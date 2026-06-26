@@ -41,6 +41,8 @@ public class MoonrakerClient implements PrinterClient {
     private PrinterStatus currentStatus;
     private boolean isConnected = false;
     private ConnectionCallback connectionCallback;
+    private String baseUrl = "";
+    private String lastThumbnailFilename = "";
 
     public MoonrakerClient() {
         this.webSocket = new MoonrakerWebSocket();
@@ -78,7 +80,7 @@ public class MoonrakerClient implements PrinterClient {
         }
 
         // Create Retrofit instance
-        String baseUrl = "http://" + host + ":" + port + "/";
+        baseUrl = "http://" + host + ":" + port + "/";
         OkHttpClient okHttpClient = new OkHttpClient.Builder()
                 .connectTimeout(10, TimeUnit.SECONDS)
                 .readTimeout(30, TimeUnit.SECONDS)
@@ -223,6 +225,10 @@ public class MoonrakerClient implements PrinterClient {
             if (filename != null) {
                 currentStatus.setCurrentFilename(filename);
                 Log.d(TAG, "Print filename: " + filename);
+                if (!filename.isEmpty() && !filename.equals(lastThumbnailFilename)) {
+                    lastThumbnailFilename = filename;
+                    fetchThumbnailUrl(filename);
+                }
             }
 
             // Duration is in seconds from Moonraker
@@ -590,5 +596,49 @@ public class MoonrakerClient implements PrinterClient {
 
     public interface TemperatureHistoryListener {
         void onTemperatureHistory(List<TemperatureHistoryPoint> history);
+    }
+
+    public interface ThumbnailListener {
+        void onThumbnailUrl(String url);
+    }
+
+    private void fetchThumbnailUrl(String filename) {
+        if (apiService == null) return;
+        apiService.getFileMetadata(filename).enqueue(new Callback<MoonrakerResponse<JsonObject>>() {
+            @Override
+            public void onResponse(Call<MoonrakerResponse<JsonObject>> call,
+                                   Response<MoonrakerResponse<JsonObject>> response) {
+                if (!response.isSuccessful() || response.body() == null) return;
+                JsonObject result = response.body().getResult();
+                if (result == null || !result.has("thumbnails")) return;
+
+                // Pick the largest thumbnail available
+                com.google.gson.JsonArray thumbs = result.getAsJsonArray("thumbnails");
+                String relativePath = null;
+                int maxSize = 0;
+                for (int i = 0; i < thumbs.size(); i++) {
+                    JsonObject t = thumbs.get(i).getAsJsonObject();
+                    int size = t.has("size") ? t.get("size").getAsInt() : 0;
+                    if (size > maxSize && t.has("relative_path")) {
+                        maxSize = size;
+                        relativePath = t.get("relative_path").getAsString();
+                    }
+                }
+                if (relativePath == null) return;
+
+                String url = baseUrl + "server/files/gcodes/" + relativePath;
+                Log.d(TAG, "Thumbnail URL: " + url);
+                for (PrinterStatusListener listener : listeners) {
+                    if (listener instanceof ThumbnailListener) {
+                        ((ThumbnailListener) listener).onThumbnailUrl(url);
+                    }
+                }
+            }
+
+            @Override
+            public void onFailure(Call<MoonrakerResponse<JsonObject>> call, Throwable t) {
+                Log.e(TAG, "Thumbnail fetch failed", t);
+            }
+        });
     }
 }

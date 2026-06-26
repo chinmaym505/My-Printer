@@ -45,8 +45,10 @@ public class SlicerPreset {
         fast2.materialFlow            = 105.0f;
         fast2.materialFlowLayer0      = 110.0f;
         fast2.retractionAmount        = 1.0f;
-        fast2.retractionCombing       = "infill";
+        // Cura's Python expression: 'no_outer_surfaces' when ironing is enabled
+        fast2.retractionCombing       = "no_outer_surfaces";
         fast2.retractionHopEnabled    = true;
+        fast2.travelSpeed             = 250.0f;
         fast2.retractionExtrusionWindow = 1.0f;
         fast2.ironingEnabled          = true;
         fast2.ironingMonotonic        = true;

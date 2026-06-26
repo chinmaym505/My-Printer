@@ -1,11 +1,19 @@
 package com.chinmay.myprinter.slicer;
 
 import android.content.Context;
+import android.graphics.Bitmap;
+import android.graphics.Canvas;
+import android.graphics.Color;
+import android.graphics.Paint;
+import android.graphics.Path;
+import android.util.Base64;
 import android.util.Log;
 
 import com.chinmay.myprinter.util.PreferenceManager;
 
 import java.io.BufferedReader;
+import java.io.ByteArrayOutputStream;
+import java.io.DataInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
@@ -16,6 +24,7 @@ import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.Locale;
 import java.util.ArrayList;
 import java.util.List;
@@ -129,6 +138,7 @@ public class CuraEngineWrapper {
 
             if (shouldStripPreheat) stripCuraEnginePreheat(outputGcodePath);
             fixFilamentUsedHeader(outputGcodePath);
+            injectThumbnail(stlPath, outputGcodePath);
 
             progress.set(100);
             return null; // success
@@ -262,20 +272,8 @@ public class CuraEngineWrapper {
         cmd.add("-s"); cmd.add("speed_wall_x="          + (int)(s.printSpeed * 0.8f));
         cmd.add("-s"); cmd.add("speed_topbottom="       + (int)(s.printSpeed * 0.8f));
 
-        // Retraction
-        cmd.add("-s"); cmd.add("retraction_enable=true");
-        cmd.add("-s"); cmd.add("retraction_amount="             + s.retractionAmount);
-        cmd.add("-s"); cmd.add("retraction_speed=45");
-        cmd.add("-s"); cmd.add("retraction_combing="            + s.retractionCombing);
-        cmd.add("-s"); cmd.add("retraction_hop_enabled="        + s.retractionHopEnabled);
-        cmd.add("-s"); cmd.add("retraction_extrusion_window="   + s.retractionExtrusionWindow);
-        // Don't retract on very short travels — reduces wear and startup blobs
-        cmd.add("-s"); cmd.add("retraction_min_travel=1.5");
         // Retract before the outer wall so the restart happens inside, not on the visible face
         cmd.add("-s"); cmd.add("travel_retract_before_outer_wall=true");
-        // Bowden tubes leave a small pressure void after retraction; a tiny extra prime
-        // compensates so the first mm of each new segment isn't under-extruded.
-        cmd.add("-s"); cmd.add("retraction_extra_prime_amount=0.1");
 
         // Wall / skin bonding — overlap skin and infill into the perimeter walls so
         // there are no gaps between regions, especially in the upper layers where the
@@ -330,6 +328,25 @@ public class CuraEngineWrapper {
         // fdmextruder.def.json defaults to 2.85mm filament (Ultimaker standard).
         // Override here in the extruder context so CuraEngine calculates correct E values.
         cmd.add("-s"); cmd.add("material_diameter=1.75");
+
+        // Retraction MUST be in the extruder context — CuraEngine reads these per-extruder
+        // and ignores global overrides for them.  Also: retraction_retract_speed and
+        // retraction_prime_speed have Python value="retraction_speed" which CuraEngine never
+        // evaluates, so their default_value=25 would be used unless we set them explicitly.
+        cmd.add("-s"); cmd.add("retraction_enable=true");
+        cmd.add("-s"); cmd.add("retraction_amount="           + s.retractionAmount);
+        cmd.add("-s"); cmd.add("retraction_speed=45");
+        cmd.add("-s"); cmd.add("retraction_retract_speed=45");
+        cmd.add("-s"); cmd.add("retraction_prime_speed=45");
+        cmd.add("-s"); cmd.add("retraction_combing="          + s.retractionCombing);
+        cmd.add("-s"); cmd.add("retraction_min_travel=1.5");
+        cmd.add("-s"); cmd.add("retraction_extrusion_window=" + s.retractionExtrusionWindow);
+        cmd.add("-s"); cmd.add("retraction_extra_prime_amount=0.1");
+        // retraction_hop_enabled default_value=False; retraction_hop default_value=1mm.
+        // Must be in extruder context to take effect.  0.2mm matches Cura Fast #2.
+        cmd.add("-s"); cmd.add("retraction_hop_enabled="      + s.retractionHopEnabled);
+        cmd.add("-s"); cmd.add("retraction_hop=0.2");
+
         cmd.add("-l"); cmd.add(stlPath);
         cmd.add("-o"); cmd.add(gcodePath);
 
@@ -513,6 +530,208 @@ public class CuraEngineWrapper {
 
         } catch (IOException e) {
             Log.e(TAG, "fixFilamentUsedHeader failed: " + e.getMessage());
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Thumbnail generation
+    // -----------------------------------------------------------------------
+
+    private static final class ThumbnailEntry {
+        final int w, h;
+        final String base64;
+        ThumbnailEntry(int w, int h, String base64) { this.w = w; this.h = h; this.base64 = base64; }
+    }
+
+    private void injectThumbnail(String stlPath, String gcodePath) {
+        try {
+            List<float[][]> tris = parseBinaryStl(stlPath);
+            if (tris.isEmpty()) { Log.d(TAG, "Thumbnail: no triangles parsed"); return; }
+
+            ThumbnailEntry small  = encodeThumbnail(tris, 32,  32);
+            ThumbnailEntry medium = encodeThumbnail(tris, 300, 300);
+            prependThumbnails(gcodePath, small, medium);
+            Log.d(TAG, "Thumbnail injected (32x32 + 300x300)");
+        } catch (Exception e) {
+            Log.e(TAG, "Thumbnail generation failed: " + e.getMessage());
+        }
+    }
+
+    // Parse binary STL only (ASCII STL returns empty list).
+    private List<float[][]> parseBinaryStl(String stlPath) throws IOException {
+        List<float[][]> out = new ArrayList<>();
+        File f = new File(stlPath);
+        if (!f.exists() || f.length() < 84) return out;
+
+        try (DataInputStream dis = new DataInputStream(
+                new java.io.BufferedInputStream(new FileInputStream(f)))) {
+            byte[] hdr = new byte[80];
+            dis.readFully(hdr);
+            // Reject ASCII STL (starts with "solid ")
+            if (new String(hdr, 0, 6, StandardCharsets.US_ASCII).equalsIgnoreCase("solid ")) return out;
+
+            int count = Integer.reverseBytes(dis.readInt());
+            int max   = Math.min(count, 60_000); // cap to keep memory reasonable
+
+            for (int i = 0; i < max; i++) {
+                // 4 rows of xyz floats: [0]=normal, [1..3]=vertices
+                float[][] tri = new float[4][3];
+                for (int r = 0; r < 4; r++) {
+                    tri[r][0] = Float.intBitsToFloat(Integer.reverseBytes(dis.readInt()));
+                    tri[r][1] = Float.intBitsToFloat(Integer.reverseBytes(dis.readInt()));
+                    tri[r][2] = Float.intBitsToFloat(Integer.reverseBytes(dis.readInt()));
+                }
+                dis.readShort(); // attribute byte count
+                out.add(tri);
+            }
+        }
+        return out;
+    }
+
+    private ThumbnailEntry encodeThumbnail(List<float[][]> tris, int w, int h) {
+        Bitmap bmp = renderIsometric(tris, w, h);
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        bmp.compress(Bitmap.CompressFormat.PNG, 90, baos);
+        bmp.recycle();
+        String b64 = Base64.encodeToString(baos.toByteArray(), Base64.NO_WRAP);
+        return new ThumbnailEntry(w, h, b64);
+    }
+
+    private Bitmap renderIsometric(List<float[][]> tris, int width, int height) {
+        // Camera: rotate 45° around Z (vertical axis), then tilt 30° above horizontal.
+        // For FDM models, Z is up, XY is the bed plane.
+        double az = Math.toRadians(45), el = Math.toRadians(30);
+        float cAz = (float) Math.cos(az), sAz = (float) Math.sin(az);
+        float cEl = (float) Math.cos(el), sEl = (float) Math.sin(el);
+
+        // Diffuse light direction (view space, pointing top-right-front)
+        float[] light = vecNorm(new float[]{0.4f, -0.2f, 0.9f});
+
+        int n = tris.size();
+
+        // Find model centroid for centering
+        float cx = 0, cy = 0, cz = 0;
+        for (float[][] t : tris) {
+            cx += t[1][0] + t[2][0] + t[3][0];
+            cy += t[1][1] + t[2][1] + t[3][1];
+            cz += t[1][2] + t[2][2] + t[3][2];
+        }
+        cx /= n * 3f; cy /= n * 3f; cz /= n * 3f;
+
+        // Project all triangles; accumulate 2D bounding box
+        float pMinX = Float.MAX_VALUE, pMaxX = -Float.MAX_VALUE;
+        float pMinY = Float.MAX_VALUE, pMaxY = -Float.MAX_VALUE;
+
+        float[][] sx = new float[n][3];  // screen X per vertex
+        float[][] sy = new float[n][3];  // screen Y per vertex
+        float[]   depth = new float[n];  // centroid depth for sort
+        int[]     color = new int[n];
+
+        for (int i = 0; i < n; i++) {
+            float[][] t = tris.get(i);
+            float dSum = 0;
+            for (int v = 0; v < 3; v++) {
+                float[] s = isoProject(t[v+1][0]-cx, t[v+1][1]-cy, t[v+1][2]-cz,
+                                       cAz, sAz, cEl, sEl);
+                sx[i][v] = s[0]; sy[i][v] = s[1];
+                dSum += s[2];
+                if (s[0] < pMinX) pMinX = s[0]; if (s[0] > pMaxX) pMaxX = s[0];
+                if (s[1] < pMinY) pMinY = s[1]; if (s[1] > pMaxY) pMaxY = s[1];
+            }
+            depth[i] = dSum / 3f;
+
+            // Transform normal for lighting
+            float[] tn = isoProject(t[0][0], t[0][1], t[0][2], cAz, sAz, cEl, sEl);
+            float diffuse = Math.max(0, vecDot(new float[]{tn[0], tn[1], tn[2]}, light));
+            int lum = (int) (60 + 180 * (0.3f + 0.7f * diffuse));
+            lum = Math.min(255, lum);
+            color[i] = Color.rgb(lum, lum, lum);
+        }
+
+        // Sort back-to-front (painter's algorithm)
+        Integer[] order = new Integer[n];
+        for (int i = 0; i < n; i++) order[i] = i;
+        Arrays.sort(order, (a, b) -> Float.compare(depth[a], depth[b]));
+
+        // Scale to fit bitmap with 8% padding
+        float rangeX = pMaxX - pMinX, rangeY = pMaxY - pMinY;
+        float scale  = 0.84f * Math.min(width  / (rangeX > 0 ? rangeX : 1f),
+                                        height / (rangeY > 0 ? rangeY : 1f));
+        float offX   = width  * 0.5f - (pMinX + pMaxX) * 0.5f * scale;
+        float offY   = height * 0.5f - (pMinY + pMaxY) * 0.5f * scale;
+
+        Bitmap bmp    = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
+        Canvas canvas = new Canvas(bmp);
+        canvas.drawColor(Color.rgb(30, 30, 30));
+
+        Paint fill = new Paint(Paint.ANTI_ALIAS_FLAG);
+        fill.setStyle(Paint.Style.FILL);
+        Path path = new Path();
+
+        for (int idx : order) {
+            path.reset();
+            path.moveTo(sx[idx][0] * scale + offX, sy[idx][0] * scale + offY);
+            path.lineTo(sx[idx][1] * scale + offX, sy[idx][1] * scale + offY);
+            path.lineTo(sx[idx][2] * scale + offX, sy[idx][2] * scale + offY);
+            path.close();
+            fill.setColor(color[idx]);
+            canvas.drawPath(path, fill);
+        }
+        return bmp;
+    }
+
+    // Returns [screenX, screenY, depth] after azimuth + elevation rotation.
+    private static float[] isoProject(float x, float y, float z,
+                                       float cAz, float sAz, float cEl, float sEl) {
+        // Rotate around Z by azimuth
+        float rx = x * cAz - y * sAz;
+        float ry = x * sAz + y * cAz;
+        float rz = z;
+        // Rotate around new X by elevation (tilts camera above horizon)
+        float tx = rx;
+        float ty = ry * cEl - rz * sEl;   // depth (into screen)
+        float tz = ry * sEl + rz * cEl;   // vertical on screen
+        return new float[]{tx, -tz, ty};  // screen: X right, Y down, depth positive = far
+    }
+
+    private static float[] vecNorm(float[] v) {
+        float len = (float) Math.sqrt(v[0]*v[0] + v[1]*v[1] + v[2]*v[2]);
+        if (len > 0) { v[0] /= len; v[1] /= len; v[2] /= len; }
+        return v;
+    }
+
+    private static float vecDot(float[] a, float[] b) {
+        return a[0]*b[0] + a[1]*b[1] + a[2]*b[2];
+    }
+
+    // Write thumbnail blocks at the top of the GCode file.
+    // Moonraker scans from the beginning, so prepending is always safe.
+    private void prependThumbnails(String gcodePath, ThumbnailEntry... entries) throws IOException {
+        File gcodeFile = new File(gcodePath);
+        File tmp       = new File(gcodePath + ".thumb.tmp");
+
+        try (PrintWriter w = new PrintWriter(
+                 new OutputStreamWriter(new FileOutputStream(tmp), StandardCharsets.UTF_8));
+             BufferedReader r = new BufferedReader(
+                 new InputStreamReader(new FileInputStream(gcodeFile), StandardCharsets.UTF_8))) {
+
+            for (ThumbnailEntry e : entries) {
+                w.printf("; thumbnail begin %dx%d %d%n", e.w, e.h, e.base64.length());
+                for (int i = 0; i < e.base64.length(); i += 76) {
+                    w.print("; ");
+                    w.println(e.base64.substring(i, Math.min(i + 76, e.base64.length())));
+                }
+                w.println("; thumbnail end");
+                w.println(";");
+            }
+
+            String line;
+            while ((line = r.readLine()) != null) w.println(line);
+        }
+
+        if (!gcodeFile.delete() || !tmp.renameTo(gcodeFile)) {
+            tmp.delete();
+            Log.e(TAG, "prependThumbnails: could not replace file");
         }
     }
 }

@@ -9,15 +9,20 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.text.Editable;
 import android.text.InputType;
+import android.text.TextWatcher;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.ImageView;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
+
+import com.bumptech.glide.Glide;
 
 import java.util.ArrayList;
 
@@ -90,7 +95,9 @@ public class HomeFragment extends Fragment {
     private Button cooldownNozzleButton;
     private Button cooldownBedButton;
     private TemperatureGraphView temperatureGraph;
+    private EditText fileSearchBar;
     private RecyclerView filesRecyclerView;
+    private ImageView printThumbnail;
     private Button reconnectButton;
     private BroadcastReceiver filesChangedReceiver;
     private CameraView cameraView;
@@ -166,7 +173,9 @@ public class HomeFragment extends Fragment {
         cooldownNozzleButton = view.findViewById(R.id.cooldown_nozzle_button);
         cooldownBedButton = view.findViewById(R.id.cooldown_bed_button);
         temperatureGraph = view.findViewById(R.id.temperature_graph);
+        fileSearchBar = view.findViewById(R.id.file_search_bar);
         filesRecyclerView = view.findViewById(R.id.files_recycler_view);
+        printThumbnail = view.findViewById(R.id.print_thumbnail);
         reconnectButton = view.findViewById(R.id.reconnect_button);
         cameraView = view.findViewById(R.id.camera_view);
         cameraStatusText = view.findViewById(R.id.camera_status_text);
@@ -196,6 +205,14 @@ public class HomeFragment extends Fragment {
         fileAdapter = new FileListAdapter();
         filesRecyclerView.setLayoutManager(new LinearLayoutManager(getContext()));
         filesRecyclerView.setAdapter(fileAdapter);
+
+        fileSearchBar.addTextChangedListener(new TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+            @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
+                fileAdapter.filter(s.toString());
+            }
+            @Override public void afterTextChanged(Editable s) {}
+        });
 
         fileAdapter.setOnFileClickListener(file -> {
             viewModel.startPrint(file.getFilename());
@@ -324,18 +341,30 @@ public class HomeFragment extends Fragment {
             }
         });
         viewModel.getTemperatureHistory().observe(getViewLifecycleOwner(), this::populateTemperatureHistory);
+        viewModel.getThumbnailUrl().observe(getViewLifecycleOwner(), url -> {
+            if (url != null && !url.isEmpty() && printThumbnail != null) {
+                Glide.with(this).load(url).into(printThumbnail);
+                printThumbnail.setVisibility(View.VISIBLE);
+            }
+        });
     }
 
     private void populateTemperatureHistory(java.util.List<TemperatureHistoryPoint> history) {
         if (history == null || history.isEmpty() || temperatureGraph == null) return;
 
-        ArrayList<Float> nozzleTemps   = new ArrayList<>(history.size());
-        ArrayList<Float> nozzleTargets = new ArrayList<>(history.size());
-        ArrayList<Float> bedTemps      = new ArrayList<>(history.size());
-        ArrayList<Float> bedTargets    = new ArrayList<>(history.size());
-        ArrayList<Long>  timestamps    = new ArrayList<>(history.size());
+        // Only keep the last 720 points (12 min at 1 Hz) so the first live addDataPoint()
+        // never causes a massive trim that wipes the graph.
+        int start = Math.max(0, history.size() - 720);
+        int size  = history.size() - start;
 
-        for (TemperatureHistoryPoint point : history) {
+        ArrayList<Float> nozzleTemps   = new ArrayList<>(size);
+        ArrayList<Float> nozzleTargets = new ArrayList<>(size);
+        ArrayList<Float> bedTemps      = new ArrayList<>(size);
+        ArrayList<Float> bedTargets    = new ArrayList<>(size);
+        ArrayList<Long>  timestamps    = new ArrayList<>(size);
+
+        for (int i = start; i < history.size(); i++) {
+            TemperatureHistoryPoint point = history.get(i);
             nozzleTemps.add(point.nozzleTemp);
             nozzleTargets.add(point.nozzleTarget);
             bedTemps.add(point.bedTemp);
@@ -423,7 +452,8 @@ public class HomeFragment extends Fragment {
             }
         } else {
             printProgressCard.setVisibility(View.GONE);
-            movementControlsLayout.setVisibility(View.VISIBLE); // Show movement controls when not printing
+            movementControlsLayout.setVisibility(View.VISIBLE);
+            if (printThumbnail != null) printThumbnail.setVisibility(View.GONE);
 
             // Stop periodic updates when not printing
             if (uiUpdateHandler != null) {

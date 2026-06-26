@@ -88,6 +88,12 @@ public interface MoonrakerApiService {
     Call<MoonrakerResponse<JsonObject>> getTemperatureHistory();
 
     /**
+     * Get file metadata (includes thumbnail paths)
+     */
+    @GET("server/files/metadata")
+    Call<MoonrakerResponse<JsonObject>> getFileMetadata(@Query("filename") String filename);
+
+    /**
      * Delete a file. filename may include subdirectory path (e.g. "subdir/file.gcode").
      */
     @DELETE("server/files/gcodes/{filename}")

@@ -37,6 +37,10 @@ public class HomeViewModel extends ViewModel {
         return repository.getTemperatureHistory();
     }
 
+    public LiveData<String> getThumbnailUrl() {
+        return repository.getThumbnailUrl();
+    }
+
     public void connect(String url, String apiKey) {
         repository.connect(url, apiKey);
     }
