@@ -32,6 +32,8 @@
 ## ⚠️ Current Issues
 
 *   Temp graph timing is buggy
+*   Print estimation is not accurate
+*   Slicer bugs
 
 ## 📥 Installation
 
