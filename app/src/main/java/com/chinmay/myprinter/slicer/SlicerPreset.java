@@ -43,8 +43,8 @@ public class SlicerPreset {
         fast2.bedTemp                 = 65.0f;
         fast2.materialFlow            = 105.0f;
         fast2.materialFlowLayer0      = 110.0f;
-        fast2.retractionAmount        = 1.0f;
-        fast2.retractionCombing       = "infill";
+        fast2.retractionAmount        = 5.0f;
+        fast2.retractionCombing       = "all";
         fast2.retractionHopEnabled    = true;
         fast2.retractionExtrusionWindow = 1.0f;
         fast2.ironingEnabled          = true;

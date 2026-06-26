@@ -4,7 +4,7 @@ public class SlicerSettings {
     // Layer / geometry
     public float layerHeight          = 0.20f;
     public float nozzleDiameter       = 0.40f;
-    public int   wallCount            = 2;
+    public int   wallCount            = 3;
     public int   bottomLayers         = -1;     // -1 = auto (~1 mm / layerHeight)
     public String infillPattern       = "lines";
     public int   infillPercent        = 20;
@@ -26,8 +26,8 @@ public class SlicerSettings {
     public float materialFlowLayer0   = 100.0f;
 
     // Retraction
-    public float   retractionAmount          = 1.0f;
-    public String  retractionCombing         = "noskin";
+    public float   retractionAmount          = 5.0f;   // Bowden (Ender 3 V1) needs 4-6 mm
+    public String  retractionCombing         = "all";   // keep nozzle inside model during travel
     public boolean retractionHopEnabled      = false;
     public float   retractionExtrusionWindow = 1.0f;
 

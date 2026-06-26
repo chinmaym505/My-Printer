@@ -221,6 +221,18 @@ public class CuraEngineWrapper {
         cmd.add("-s"); cmd.add("infill_pattern="          + s.infillPattern);
         cmd.add("-s"); cmd.add("inset_direction="         + s.insetDirection);
 
+        // Wall line width thresholds — fdmprinter.def.json default_value=0.34mm but the Python
+        // "value" expression evaluates to 0.20mm (line_width * wall_add_middle_threshold / 100
+        // = 0.4 * 50/100 = 0.20).  CuraEngine never evaluates the Python expression, so it uses
+        // 0.34mm and drops wall lines that desktop Cura would keep.  Those dropped lines are the
+        // "holes in the walls" on narrow upper sections.  Set to match desktop Cura's value.
+        cmd.add("-s"); cmd.add("min_wall_line_width=0.2");
+        cmd.add("-s"); cmd.add("min_even_wall_line_width=0.2");
+        cmd.add("-s"); cmd.add("min_odd_wall_line_width=0.2");
+        // Transition length: Python gives 4*line_width/3 = 0.533mm; default_value=0.4mm.
+        // Shorter transition = more abrupt wall-count changes = more visible seam at transitions.
+        cmd.add("-s"); cmd.add("wall_transition_length=0.533");
+
         // Temperatures
         cmd.add("-s"); cmd.add("material_print_temperature="         + (int)s.nozzleTemp);
         cmd.add("-s"); cmd.add("material_print_temperature_layer_0=" + (int)s.nozzleTempLayer0);
@@ -257,6 +269,19 @@ public class CuraEngineWrapper {
         cmd.add("-s"); cmd.add("retraction_combing="            + s.retractionCombing);
         cmd.add("-s"); cmd.add("retraction_hop_enabled="        + s.retractionHopEnabled);
         cmd.add("-s"); cmd.add("retraction_extrusion_window="   + s.retractionExtrusionWindow);
+        // Don't retract on very short travels — reduces wear and startup blobs
+        cmd.add("-s"); cmd.add("retraction_min_travel=1.5");
+        // Retract before the outer wall so the restart happens inside, not on the visible face
+        cmd.add("-s"); cmd.add("travel_retract_before_outer_wall=true");
+        // Bowden tubes leave a small pressure void after retraction; a tiny extra prime
+        // compensates so the first mm of each new segment isn't under-extruded.
+        cmd.add("-s"); cmd.add("retraction_extra_prime_amount=0.1");
+
+        // Wall / skin bonding — overlap skin and infill into the perimeter walls so
+        // there are no gaps between regions, especially in the upper layers where the
+        // cross-section is small and each travel move has more impact per unit of wall length.
+        cmd.add("-s"); cmd.add("skin_overlap=15");   // 15% of line width (default 5%)
+        cmd.add("-s"); cmd.add("infill_overlap=15"); // 15% of line width (default 10%)
 
         // Cooling
         cmd.add("-s"); cmd.add("cool_fan_enabled=true");
@@ -268,6 +293,11 @@ public class CuraEngineWrapper {
         // to default_value=0, which causes M104 commands that ramp toward 0°C on fast
         // layers.  Pin it to the nozzle temp so CuraEngine never lowers temperature.
         cmd.add("-s"); cmd.add("cool_min_temperature=" + (int)s.nozzleTemp);
+        // CuraEngine slows upper layers to meet cool_min_layer_time.  The default floor
+        // (10 mm/s) is far too slow for a Bowden extruder — tube pressure collapses and
+        // extrusion becomes inconsistent, causing holes specifically in the upper half of
+        // prints where the cross-section is small enough to trigger speed reduction.
+        cmd.add("-s"); cmd.add("cool_min_speed=25");
 
         // Surface quality
         cmd.add("-s"); cmd.add("ironing_enabled="       + s.ironingEnabled);
@@ -285,8 +315,8 @@ public class CuraEngineWrapper {
         cmd.add("-s"); cmd.add("meshfix_maximum_resolution=" + s.meshfixMaxResolution);
         cmd.add("-s"); cmd.add("meshfix_maximum_deviation=0.1");
 
-        // Skip expensive gap-fill and avoid-other-parts travel planning
-        cmd.add("-s"); cmd.add("fill_outline_gaps=false");
+        // Fill gaps in thin-walled regions (e.g. upper sections where geometry narrows)
+        cmd.add("-s"); cmd.add("fill_outline_gaps=true");
         cmd.add("-s"); cmd.add("travel_avoid_other_parts=false");
         cmd.add("-s"); cmd.add("travel_avoid_supports=false");
 
