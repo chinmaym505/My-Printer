@@ -34,7 +34,7 @@ find_ndk() {
     if [ -z "${ANDROID_NDK_HOME:-}" ] && [ -z "${NDK_HOME:-}" ]; then
         local win_ndk_base="/mnt/c/Users"
         if [ -d "$win_ndk_base" ]; then
-            while IFS= read -r p; do{nozzle_temp
+            while IFS= read -r p; do
                 candidates+=("$p")
             done < <(find "$win_ndk_base" -maxdepth 6 \
                           -name "android.toolchain.cmake" 2>/dev/null \
