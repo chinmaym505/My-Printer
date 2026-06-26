@@ -11,13 +11,13 @@ public class PrinterStatus {
     private Temperature bedTemp;
     private Position position;
     private int printProgress;
+    private float printProgressFloat; // 0.0–1.0 raw value from virtual_sdcard
     private int currentLayer;
     private int totalLayers;
     private String currentFilename;
-    private long printDuration; // seconds
+    private long printDuration; // seconds, raw from Moonraker print_stats.print_duration
     private long totalDuration; // seconds (estimated)
     private long filamentUsed; // mm
-    private long lastUpdateTime; // timestamp in milliseconds when printDuration was last updated
 
     public PrinterStatus() {
         this.state = PrinterState.DISCONNECTED;
@@ -26,13 +26,13 @@ public class PrinterStatus {
         this.bedTemp = new Temperature();
         this.position = new Position();
         this.printProgress = 0;
+        this.printProgressFloat = 0f;
         this.currentLayer = 0;
         this.totalLayers = 0;
         this.currentFilename = "";
         this.printDuration = 0;
         this.totalDuration = 0;
         this.filamentUsed = 0;
-        this.lastUpdateTime = System.currentTimeMillis();
     }
 
     public PrinterState getState() {
@@ -40,10 +40,6 @@ public class PrinterStatus {
     }
 
     public void setState(PrinterState state) {
-        // If state changes to PRINTING, reset the update time for accurate interpolation
-        if (state == PrinterState.PRINTING && this.state != PrinterState.PRINTING) {
-            this.lastUpdateTime = System.currentTimeMillis();
-        }
         this.state = state;
     }
 
@@ -112,17 +108,20 @@ public class PrinterStatus {
     }
 
     public long getPrintDuration() {
-        // If printing, interpolate duration based on elapsed time since last update
-        if (state == PrinterState.PRINTING) {
-            long elapsedSeconds = (System.currentTimeMillis() - lastUpdateTime) / 1000;
-            return printDuration + elapsedSeconds;
-        }
         return printDuration;
     }
 
     public void setPrintDuration(long printDuration) {
         this.printDuration = printDuration;
-        this.lastUpdateTime = System.currentTimeMillis();
+    }
+
+    public float getPrintProgressFloat() {
+        return printProgressFloat;
+    }
+
+    public void setPrintProgressFloat(float progress) {
+        this.printProgressFloat = progress;
+        this.printProgress = Math.round(progress * 100);
     }
 
     public long getTotalDuration() {
@@ -141,19 +140,10 @@ public class PrinterStatus {
         this.filamentUsed = filamentUsed;
     }
 
-    // Calculate print progress percentage
-    public int calculateProgress() {
-        if (totalDuration > 0 && printDuration > 0) {
-            return (int) ((printDuration * 100) / totalDuration);
-        }
-        return 0;
-    }
-
-    // Calculate time remaining in seconds
+    // Calculate time remaining in seconds: elapsed * (1 - progress) / progress
     public long getTimeRemaining() {
-        if (totalDuration > 0 && printDuration > 0) {
-            long remaining = totalDuration - printDuration;
-            return remaining > 0 ? remaining : 0;
+        if (printProgressFloat > 0f && printProgressFloat < 1f) {
+            return (long)(printDuration * (1.0f - printProgressFloat) / printProgressFloat);
         }
         return 0;
     }

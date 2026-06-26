@@ -171,6 +171,10 @@ public class MoonrakerWebSocket {
                         statusData.setPrintStats(gson.fromJson(params.get("print_stats"), PrinterObjects.PrintStatsData.class));
                     }
 
+                    if (params.has("virtual_sdcard")) {
+                        statusData.setVirtualSdcard(gson.fromJson(params.get("virtual_sdcard"), PrinterObjects.VirtualSdcardData.class));
+                    }
+
                     // Notify listener on main thread
                     handler.post(() -> {
                         if (listener != null) {

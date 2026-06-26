@@ -3,6 +3,7 @@ package com.chinmay.myprinter.slicer;
 public class SlicerSettings {
     // Layer / geometry
     public float layerHeight          = 0.20f;
+    public float initialLayerHeight   = 0.28f;  // thicker first layer improves bed adhesion
     public float nozzleDiameter       = 0.40f;
     public int   wallCount            = 3;
     public int   bottomLayers         = -1;     // -1 = auto (~1 mm / layerHeight)

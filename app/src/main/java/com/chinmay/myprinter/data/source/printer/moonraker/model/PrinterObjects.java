@@ -41,6 +41,9 @@ public class PrinterObjects {
         @SerializedName("print_stats")
         private PrintStatsData printStats;
 
+        @SerializedName("virtual_sdcard")
+        private VirtualSdcardData virtualSdcard;
+
         public HeaterData getExtruder() {
             return extruder;
         }
@@ -71,6 +74,37 @@ public class PrinterObjects {
 
         public void setPrintStats(PrintStatsData printStats) {
             this.printStats = printStats;
+        }
+
+        public VirtualSdcardData getVirtualSdcard() {
+            return virtualSdcard;
+        }
+
+        public void setVirtualSdcard(VirtualSdcardData virtualSdcard) {
+            this.virtualSdcard = virtualSdcard;
+        }
+    }
+
+    public static class VirtualSdcardData {
+        @SerializedName("progress")
+        private Float progress;
+
+        @SerializedName("file_position")
+        private Long filePosition;
+
+        @SerializedName("is_active")
+        private Boolean isActive;
+
+        public Float getProgress() {
+            return progress;
+        }
+
+        public Long getFilePosition() {
+            return filePosition;
+        }
+
+        public Boolean getIsActive() {
+            return isActive;
         }
     }
 

@@ -15,6 +15,9 @@ import com.chinmay.myprinter.data.source.printer.moonraker.model.FileListRespons
 import com.chinmay.myprinter.data.source.printer.moonraker.model.MoonrakerResponse;
 import com.chinmay.myprinter.data.source.printer.moonraker.model.PrinterObjects;
 
+import com.google.gson.JsonArray;
+import com.google.gson.JsonObject;
+
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -156,6 +159,7 @@ public class MoonrakerClient implements PrinterClient {
         queryParams.put("heater_bed", "temperature,target,power");
         queryParams.put("toolhead", "position,homed_axes");
         queryParams.put("print_stats", "state,filename,print_duration,total_duration,filament_used,info");
+        queryParams.put("virtual_sdcard", "progress,file_position,is_active");
 
         apiService.queryPrinterObjects(queryParams).enqueue(new Callback<MoonrakerResponse<PrinterObjects>>() {
             @Override
@@ -225,13 +229,15 @@ public class MoonrakerClient implements PrinterClient {
             currentStatus.setPrintDuration((long) status.getPrintStats().getPrintDuration());
             currentStatus.setTotalDuration((long) status.getPrintStats().getTotalDuration());
             currentStatus.setFilamentUsed((long) status.getPrintStats().getFilamentUsed());
+            Log.d(TAG, "Print duration: " + currentStatus.getPrintDuration() + "s");
 
-            // Calculate and update progress percentage
-            int progress = currentStatus.calculateProgress();
-            currentStatus.setPrintProgress(progress);
-            Log.d(TAG, "Print progress: " + progress + "% (" +
-                  currentStatus.getPrintDuration() + "s / " +
-                  currentStatus.getTotalDuration() + "s)");
+            // Progress from virtual_sdcard (file bytes read / file size) — same source Fluidd uses.
+            // Fall back to 0 if not yet received (delta updates may not include it every tick).
+            if (status.getVirtualSdcard() != null && status.getVirtualSdcard().getProgress() != null) {
+                float progress = status.getVirtualSdcard().getProgress();
+                currentStatus.setPrintProgressFloat(progress);
+                Log.d(TAG, "Print progress (virtual_sdcard): " + Math.round(progress * 100) + "%");
+            }
 
             // Update layer info if available
             if (status.getPrintStats().getInfo() != null) {
@@ -499,7 +505,7 @@ public class MoonrakerClient implements PrinterClient {
     }
 
     public static class TemperatureHistoryPoint {
-        public final long timestamp; // Unix timestamp in seconds
+        public final long timestamp; // milliseconds (System.currentTimeMillis())
         public final float nozzleTemp;
         public final float nozzleTarget;
         public final float bedTemp;
@@ -516,68 +522,61 @@ public class MoonrakerClient implements PrinterClient {
     }
 
     private void queryTemperatureHistory() {
-        apiService.getTemperatureHistory().enqueue(new Callback<MoonrakerResponse<Map<String, Object>>>() {
+        apiService.getTemperatureHistory().enqueue(new Callback<MoonrakerResponse<JsonObject>>() {
             @Override
-            public void onResponse(Call<MoonrakerResponse<Map<String, Object>>> call,
-                                   Response<MoonrakerResponse<Map<String, Object>>> response) {
-                if (response.isSuccessful() && response.body() != null && response.body().isSuccess()) {
-                    Map<String, Object> result = response.body().getResult();
-                    parseTemperatureHistory(result);
+            public void onResponse(Call<MoonrakerResponse<JsonObject>> call,
+                                   Response<MoonrakerResponse<JsonObject>> response) {
+                if (response.isSuccessful() && response.body() != null) {
+                    JsonObject result = response.body().getResult();
+                    if (result != null) {
+                        parseTemperatureHistory(result);
+                    } else {
+                        Log.e(TAG, "Temperature history: result is null");
+                    }
                 } else {
-                    Log.e(TAG, "Failed to fetch temperature history");
+                    Log.e(TAG, "Temperature history request failed: HTTP " + response.code());
                 }
             }
 
             @Override
-            public void onFailure(Call<MoonrakerResponse<Map<String, Object>>> call, Throwable t) {
+            public void onFailure(Call<MoonrakerResponse<JsonObject>> call, Throwable t) {
                 Log.e(TAG, "Temperature history query failed", t);
             }
         });
     }
 
-    @SuppressWarnings("unchecked")
-    private void parseTemperatureHistory(Map<String, Object> result) {
+    private void parseTemperatureHistory(JsonObject result) {
         try {
-            List<TemperatureHistoryPoint> history = new ArrayList<>();
+            JsonObject extruder = result.has("extruder") ? result.getAsJsonObject("extruder") : null;
+            JsonObject heaterBed = result.has("heater_bed") ? result.getAsJsonObject("heater_bed") : null;
 
-            // Get extruder data
-            Map<String, Object> extruder = (Map<String, Object>) result.get("extruder");
-            List<Double> extruderTemps = extruder != null ? (List<Double>) extruder.get("temperatures") : null;
-            List<Double> extruderTargets = extruder != null ? (List<Double>) extruder.get("targets") : null;
+            JsonArray nozzleTempsArr   = extruder  != null && extruder.has("temperatures")  ? extruder.getAsJsonArray("temperatures")  : null;
+            JsonArray nozzleTargetsArr = extruder  != null && extruder.has("targets")        ? extruder.getAsJsonArray("targets")        : null;
+            JsonArray bedTempsArr      = heaterBed != null && heaterBed.has("temperatures") ? heaterBed.getAsJsonArray("temperatures") : null;
+            JsonArray bedTargetsArr    = heaterBed != null && heaterBed.has("targets")      ? heaterBed.getAsJsonArray("targets")      : null;
 
-            // Get heater_bed data
-            Map<String, Object> heaterBed = (Map<String, Object>) result.get("heater_bed");
-            List<Double> bedTemps = heaterBed != null ? (List<Double>) heaterBed.get("temperatures") : null;
-            List<Double> bedTargets = heaterBed != null ? (List<Double>) heaterBed.get("targets") : null;
-
-            // Get timestamps (same for all heaters)
-            List<Double> timestamps = extruder != null ? (List<Double>) extruder.get("times") : null;
-
-            if (timestamps == null || timestamps.isEmpty()) {
+            if (nozzleTempsArr == null || nozzleTempsArr.size() == 0) {
                 Log.d(TAG, "No temperature history available");
                 return;
             }
 
-            // Build history points
-            int count = timestamps.size();
-            for (int i = 0; i < count; i++) {
-                long timestamp = timestamps.get(i).longValue();
-                float nozzleTemp = extruderTemps != null && i < extruderTemps.size() ?
-                                  extruderTemps.get(i).floatValue() : 0;
-                float nozzleTarget = extruderTargets != null && i < extruderTargets.size() ?
-                                    extruderTargets.get(i).floatValue() : 0;
-                float bedTemp = bedTemps != null && i < bedTemps.size() ?
-                               bedTemps.get(i).floatValue() : 0;
-                float bedTarget = bedTargets != null && i < bedTargets.size() ?
-                                 bedTargets.get(i).floatValue() : 0;
+            // Moonraker stores at ~1 Hz with no per-sample timestamps.
+            // Reconstruct: last sample = now, earlier samples go back 1 s each.
+            int count = nozzleTempsArr.size();
+            long nowMs = System.currentTimeMillis();
+            List<TemperatureHistoryPoint> history = new ArrayList<>(count);
 
-                history.add(new TemperatureHistoryPoint(timestamp, nozzleTemp, nozzleTarget,
-                                                        bedTemp, bedTarget));
+            for (int i = 0; i < count; i++) {
+                long timestampMs = nowMs - (long)(count - 1 - i) * 1000L;
+                float nozzleTemp   = nozzleTempsArr.get(i).getAsFloat();
+                float nozzleTarget = nozzleTargetsArr != null && i < nozzleTargetsArr.size() ? nozzleTargetsArr.get(i).getAsFloat() : 0f;
+                float bedTemp      = bedTempsArr      != null && i < bedTempsArr.size()      ? bedTempsArr.get(i).getAsFloat()      : 0f;
+                float bedTarget    = bedTargetsArr    != null && i < bedTargetsArr.size()    ? bedTargetsArr.get(i).getAsFloat()    : 0f;
+                history.add(new TemperatureHistoryPoint(timestampMs, nozzleTemp, nozzleTarget, bedTemp, bedTarget));
             }
 
-            Log.d(TAG, "Temperature history loaded: " + history.size() + " points");
+            Log.d(TAG, "Temperature history loaded: " + count + " points");
 
-            // Notify listeners with history
             for (PrinterStatusListener listener : listeners) {
                 if (listener instanceof TemperatureHistoryListener) {
                     ((TemperatureHistoryListener) listener).onTemperatureHistory(history);

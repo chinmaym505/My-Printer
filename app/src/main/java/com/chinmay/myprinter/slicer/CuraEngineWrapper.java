@@ -213,7 +213,7 @@ public class CuraEngineWrapper {
 
         // Quality settings
         cmd.add("-s"); cmd.add("layer_height="            + s.layerHeight);
-        cmd.add("-s"); cmd.add("layer_height_0="          + Math.max(s.layerHeight, 0.28f));
+        cmd.add("-s"); cmd.add("layer_height_0="          + s.initialLayerHeight);
         cmd.add("-s"); cmd.add("wall_line_count="         + s.wallCount);
         cmd.add("-s"); cmd.add("top_layers="              + topBottomLayers(s.layerHeight));
         cmd.add("-s"); cmd.add("bottom_layers="           + (s.bottomLayers > 0 ? s.bottomLayers : topBottomLayers(s.layerHeight)));

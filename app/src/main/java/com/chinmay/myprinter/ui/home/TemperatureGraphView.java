@@ -16,7 +16,7 @@ import java.util.List;
 import java.util.Locale;
 
 public class TemperatureGraphView extends View {
-    private static final int MAX_DATA_POINTS = 360; // 12 minutes at 2 sec intervals (6 grid squares * 2 min)
+    private static final int MAX_DATA_POINTS = 720; // 12 minutes at 1 Hz (matches history store interval)
     private static final int MAX_TEMP = 250;
 
     private final Paint nozzlePaint;
@@ -139,85 +139,74 @@ public class TemperatureGraphView extends View {
         invalidate();
     }
 
+    // Visible time window: 12 minutes (6 × 2-min grid intervals)
+    private static final long WINDOW_MS = 12 * 60 * 1000L;
+    private static final long GRID_INTERVAL_MS = 2 * 60 * 1000L;
+
     @Override
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
 
-        int width = getWidth();
-        int height = getHeight();
-        int padding = 40;
+        int w = getWidth();
+        int h = getHeight();
+        // Leave room for "250°C" label on the left and rotated time labels at the bottom
+        float lPad = 72f, rPad = 12f, tPad = 10f, bPad = 44f;
+        float plotLeft = lPad, plotRight = w - rPad, plotTop = tPad, plotBottom = h - bPad;
 
-        // Draw background
         canvas.drawColor(Color.rgb(250, 250, 250));
 
-        // Draw grid lines (horizontal)
+        // Window anchored to now so the graph scrolls in real time
+        long windowEnd   = System.currentTimeMillis();
+        long windowStart = windowEnd - WINDOW_MS;
+
+        // Horizontal grid lines + Y-axis labels
         for (int temp = 0; temp <= MAX_TEMP; temp += 50) {
-            float y = height - padding - (temp / (float) MAX_TEMP) * (height - 2 * padding);
-            canvas.drawLine(padding, y, width - padding, y, gridPaint);
-
-            // Draw temperature labels
-            canvas.drawText(temp + "°", 5, y + 8, textPaint);
+            float y = tempToY(temp, plotTop, plotBottom);
+            canvas.drawLine(plotLeft, y, plotRight, y, gridPaint);
+            canvas.drawText(temp + "°C", 4, y + 8, textPaint);
         }
 
-        // Draw vertical grid lines with timestamps (2 min intervals)
-        if (!timestamps.isEmpty()) {
-            SimpleDateFormat timeFormat = new SimpleDateFormat("HH:mm", Locale.US);
-            int gridCount = 6; // 6 vertical lines for 2 min intervals = 12 minutes total
-
-            for (int i = 0; i <= gridCount; i++) {
-                float x = padding + (i / (float) gridCount) * (width - 2 * padding);
-                canvas.drawLine(x, padding, x, height - padding, gridPaint);
-
-                // Find the closest timestamp to this grid position
-                int dataIndex = (int) ((i / (float) gridCount) * (timestamps.size() - 1));
-                if (dataIndex < timestamps.size()) {
-                    String timeLabel = timeFormat.format(new Date(timestamps.get(dataIndex)));
-                    canvas.save();
-                    canvas.rotate(-45, x, height - padding + 20);
-                    canvas.drawText(timeLabel, x, height - padding + 20, textPaint);
-                    canvas.restore();
-                }
-            }
-        } else {
-            // Draw generic vertical grid lines if no timestamps
-            int gridCount = 6;
-            for (int i = 0; i <= gridCount; i++) {
-                float x = padding + (i / (float) gridCount) * (width - 2 * padding);
-                canvas.drawLine(x, padding, x, height - padding, gridPaint);
-            }
+        // Vertical grid lines at 2-minute boundaries
+        SimpleDateFormat timeFmt = new SimpleDateFormat("h:mm", Locale.US);
+        long firstGrid = ((windowStart / GRID_INTERVAL_MS) + 1) * GRID_INTERVAL_MS;
+        for (long t = firstGrid; t <= windowEnd; t += GRID_INTERVAL_MS) {
+            float x = timeToX(t, windowStart, windowEnd, plotLeft, plotRight);
+            canvas.drawLine(x, plotTop, x, plotBottom, gridPaint);
+            canvas.save();
+            canvas.rotate(-45, x, plotBottom + 20);
+            canvas.drawText(timeFmt.format(new Date(t)), x, plotBottom + 20, textPaint);
+            canvas.restore();
         }
 
-        if (nozzleTemps.isEmpty()) {
-            return;
-        }
+        if (nozzleTemps.isEmpty()) return;
 
-        // Draw temperature lines
-        drawTemperatureLine(canvas, nozzleTemps, nozzlePaint, width, height, padding);
-        drawTemperatureLine(canvas, nozzleTargets, nozzleTargetPaint, width, height, padding);
-        drawTemperatureLine(canvas, bedTemps, bedPaint, width, height, padding);
-        drawTemperatureLine(canvas, bedTargets, bedTargetPaint, width, height, padding);
+        drawLine(canvas, nozzleTemps,   nozzlePaint,       windowStart, windowEnd, plotLeft, plotRight, plotTop, plotBottom);
+        drawLine(canvas, nozzleTargets, nozzleTargetPaint, windowStart, windowEnd, plotLeft, plotRight, plotTop, plotBottom);
+        drawLine(canvas, bedTemps,      bedPaint,          windowStart, windowEnd, plotLeft, plotRight, plotTop, plotBottom);
+        drawLine(canvas, bedTargets,    bedTargetPaint,    windowStart, windowEnd, plotLeft, plotRight, plotTop, plotBottom);
     }
 
-    private void drawTemperatureLine(Canvas canvas, List<Float> temps, Paint paint,
-                                     int width, int height, int padding) {
-        if (temps.isEmpty()) return;
+    private float timeToX(long t, long windowStart, long windowEnd, float left, float right) {
+        return left + ((t - windowStart) / (float)(windowEnd - windowStart)) * (right - left);
+    }
 
+    private float tempToY(float temp, float top, float bottom) {
+        return bottom - (temp / MAX_TEMP) * (bottom - top);
+    }
+
+    private void drawLine(Canvas canvas, List<Float> temps, Paint paint,
+                          long windowStart, long windowEnd,
+                          float left, float right, float top, float bottom) {
         Path path = new Path();
         boolean first = true;
-
-        for (int i = 0; i < temps.size(); i++) {
-            float x = padding + (i / (float) (MAX_DATA_POINTS - 1)) * (width - 2 * padding);
-            float temp = temps.get(i);
-            float y = height - padding - (temp / MAX_TEMP) * (height - 2 * padding);
-
-            if (first) {
-                path.moveTo(x, y);
-                first = false;
-            } else {
-                path.lineTo(x, y);
-            }
+        for (int i = 0; i < temps.size() && i < timestamps.size(); i++) {
+            long ts = timestamps.get(i);
+            if (ts < windowStart || ts > windowEnd) continue;
+            float x = timeToX(ts, windowStart, windowEnd, left, right);
+            float y = tempToY(temps.get(i), top, bottom);
+            if (first) { path.moveTo(x, y); first = false; }
+            else        { path.lineTo(x, y); }
         }
-
-        canvas.drawPath(path, paint);
+        if (!first) canvas.drawPath(path, paint);
     }
 }

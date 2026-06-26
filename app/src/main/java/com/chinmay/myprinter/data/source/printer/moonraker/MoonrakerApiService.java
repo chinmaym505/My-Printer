@@ -3,6 +3,7 @@ package com.chinmay.myprinter.data.source.printer.moonraker;
 import com.chinmay.myprinter.data.source.printer.moonraker.model.FileListResponse;
 import com.chinmay.myprinter.data.source.printer.moonraker.model.MoonrakerResponse;
 import com.chinmay.myprinter.data.source.printer.moonraker.model.PrinterObjects;
+import com.google.gson.JsonObject;
 
 import java.util.List;
 import java.util.Map;
@@ -84,7 +85,7 @@ public interface MoonrakerApiService {
      * Get temperature history from server
      */
     @GET("server/temperature_store")
-    Call<MoonrakerResponse<Map<String, Object>>> getTemperatureHistory();
+    Call<MoonrakerResponse<JsonObject>> getTemperatureHistory();
 
     /**
      * Delete a file. filename may include subdirectory path (e.g. "subdir/file.gcode").

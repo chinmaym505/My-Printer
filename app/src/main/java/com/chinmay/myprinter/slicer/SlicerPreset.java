@@ -31,6 +31,7 @@ public class SlicerPreset {
         hd.nozzleTempLayer0    = 220.0f;
 
         SlicerSettings fast2 = new SlicerSettings();
+        fast2.initialLayerHeight      = 0.2f;
         fast2.printSpeed              = 300.0f;
         fast2.speedLayer0             = 50.0f;
         fast2.speedWall0              = 50.0f;
@@ -43,8 +44,8 @@ public class SlicerPreset {
         fast2.bedTemp                 = 65.0f;
         fast2.materialFlow            = 105.0f;
         fast2.materialFlowLayer0      = 110.0f;
-        fast2.retractionAmount        = 5.0f;
-        fast2.retractionCombing       = "all";
+        fast2.retractionAmount        = 1.0f;
+        fast2.retractionCombing       = "infill";
         fast2.retractionHopEnabled    = true;
         fast2.retractionExtrusionWindow = 1.0f;
         fast2.ironingEnabled          = true;

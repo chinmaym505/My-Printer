@@ -327,24 +327,23 @@ public class HomeFragment extends Fragment {
     }
 
     private void populateTemperatureHistory(java.util.List<TemperatureHistoryPoint> history) {
-        if (history == null || history.isEmpty() || temperatureGraph == null) {
-            return;
-        }
+        if (history == null || history.isEmpty() || temperatureGraph == null) return;
 
-        // Clear existing graph data
-        temperatureGraph.clear();
+        ArrayList<Float> nozzleTemps   = new ArrayList<>(history.size());
+        ArrayList<Float> nozzleTargets = new ArrayList<>(history.size());
+        ArrayList<Float> bedTemps      = new ArrayList<>(history.size());
+        ArrayList<Float> bedTargets    = new ArrayList<>(history.size());
+        ArrayList<Long>  timestamps    = new ArrayList<>(history.size());
 
-        // Populate graph with historical data
-        // Moonraker timestamps are in seconds, convert to milliseconds
         for (TemperatureHistoryPoint point : history) {
-            temperatureGraph.addDataPoint(
-                    point.nozzleTemp,
-                    point.nozzleTarget,
-                    point.bedTemp,
-                    point.bedTarget,
-                    point.timestamp * 1000 // Convert seconds to milliseconds
-            );
+            nozzleTemps.add(point.nozzleTemp);
+            nozzleTargets.add(point.nozzleTarget);
+            bedTemps.add(point.bedTemp);
+            bedTargets.add(point.bedTarget);
+            timestamps.add(point.timestamp);
         }
+
+        temperatureGraph.restoreData(nozzleTemps, nozzleTargets, bedTemps, bedTargets, timestamps);
     }
 
     private void updateStatus(PrinterStatus status) {
