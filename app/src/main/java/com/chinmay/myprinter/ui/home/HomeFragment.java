@@ -196,7 +196,7 @@ public class HomeFragment extends Fragment {
             printerClient = new MockPrinterClient();
         }
 
-        PrinterRepository repository = new PrinterRepository(printerClient);
+        PrinterRepository repository = new PrinterRepository(requireContext(), printerClient);
         ViewModelFactory factory = new ViewModelFactory(repository);
         viewModel = new ViewModelProvider(this, factory).get(HomeViewModel.class);
     }

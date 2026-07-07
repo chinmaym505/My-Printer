@@ -262,6 +262,11 @@ public class CuraEngineWrapper {
 
         // Speeds
         int wall0Speed = s.speedWall0 > 0 ? (int)s.speedWall0 : (int)(s.printSpeed * 0.6f);
+        // With inset_direction=inside_out the toolhead goes inner→outer wall with no retraction
+        // in between. If the inner wall is much faster than the outer wall, PA drains pressure
+        // at that transition and the outer wall starts under-extruded. Cap inner walls at 2×
+        // outer wall speed so the PA delta stays small (≤ 2:1 ratio is comfortable for PA).
+        int wallXSpeed = Math.min((int)(s.printSpeed * 0.8f), wall0Speed * 2);
         cmd.add("-s"); cmd.add("speed_print="           + (int)s.printSpeed);
         cmd.add("-s"); cmd.add("speed_travel="          + (int)s.travelSpeed);
         cmd.add("-s"); cmd.add("speed_layer_0="         + (int)s.speedLayer0);
@@ -269,11 +274,15 @@ public class CuraEngineWrapper {
         cmd.add("-s"); cmd.add("speed_travel_layer_0="  + "100");
         cmd.add("-s"); cmd.add("speed_infill="          + (int)(s.printSpeed * 1.2f));
         cmd.add("-s"); cmd.add("speed_wall_0="          + wall0Speed);
-        cmd.add("-s"); cmd.add("speed_wall_x="          + (int)(s.printSpeed * 0.8f));
+        cmd.add("-s"); cmd.add("speed_wall_x="          + wallXSpeed);
         cmd.add("-s"); cmd.add("speed_topbottom="       + (int)(s.printSpeed * 0.8f));
 
         // Retract before the outer wall so the restart happens inside, not on the visible face
         cmd.add("-s"); cmd.add("travel_retract_before_outer_wall=true");
+        // Wipe 0.2 mm back along the just-printed outer wall before lifting/retracting.
+        // Smears the end-of-path pressure blob onto the inner surface rather than leaving
+        // it as a pressure spike that bleeds into the next restart.
+        cmd.add("-s"); cmd.add("outer_wall_wipe_dist=0.2");
 
         // Wall / skin bonding — overlap skin and infill into the perimeter walls so
         // there are no gaps between regions, especially in the upper layers where the
@@ -285,17 +294,18 @@ public class CuraEngineWrapper {
         cmd.add("-s"); cmd.add("cool_fan_enabled=true");
         cmd.add("-s"); cmd.add("cool_fan_speed=100");
         cmd.add("-s"); cmd.add("cool_fan_speed_0=0");
-        cmd.add("-s"); cmd.add("cool_min_layer_time=10");
+        // Match Cura's default (5s). Our previous 10s was too aggressive: the Benchy hull
+        // top and cabin walls triggered it while Cura's GCode showed no slowdown at the same layers.
+        cmd.add("-s"); cmd.add("cool_min_layer_time=5");
         // fdmprinter.def.json sets cool_min_temperature via a Python "value" expression
         // ("material_print_temperature") that CuraEngine never evaluates — it falls back
         // to default_value=0, which causes M104 commands that ramp toward 0°C on fast
         // layers.  Pin it to the nozzle temp so CuraEngine never lowers temperature.
         cmd.add("-s"); cmd.add("cool_min_temperature=" + (int)s.nozzleTemp);
-        // CuraEngine slows upper layers to meet cool_min_layer_time.  The default floor
-        // (10 mm/s) is far too slow for a Bowden extruder — tube pressure collapses and
-        // extrusion becomes inconsistent, causing holes specifically in the upper half of
-        // prints where the cross-section is small enough to trigger speed reduction.
-        cmd.add("-s"); cmd.add("cool_min_speed=25");
+        // When layer time DOES force a slowdown, keep wall speed close to the retraction
+        // prime speed (45 mm/s) so the PA delta on the first wall move after a restart
+        // is small. 40 mm/s → ratio ≈ 1.1:1, vs 25 mm/s → ratio 1.8:1.
+        cmd.add("-s"); cmd.add("cool_min_speed=40");
 
         // Surface quality
         cmd.add("-s"); cmd.add("ironing_enabled="       + s.ironingEnabled);
@@ -322,6 +332,18 @@ public class CuraEngineWrapper {
         cmd.add("-s"); cmd.add("z_seam_type="   + s.zSeamType);
         cmd.add("-s"); cmd.add("z_seam_corner=" + s.zSeamCorner);
 
+        // Klipper owns motion planning; CuraEngine must not bake per-segment speed ramps.
+        // ender3.def.json has machine_acceleration=500 and machine_max_jerk_xy=10, which
+        // cause CuraEngine to output a different F value for every wall segment based on
+        // segment length. Klipper's Pressure Advance fires on each feedrate change, so
+        // those varying Fs trigger PA under-extrusion precisely at wall transitions → holes.
+        // Setting these to arbitrarily high values forces CuraEngine to output constant
+        // target feedrates (matching Cura desktop behaviour) and lets Klipper+PA work correctly.
+        cmd.add("-s"); cmd.add("machine_acceleration=100000");
+        cmd.add("-s"); cmd.add("machine_max_jerk_xy=500");
+        cmd.add("-s"); cmd.add("machine_max_jerk_z=10");
+        cmd.add("-s"); cmd.add("machine_max_jerk_e=500");
+
         // Extruder 0: base extruder defaults, then model
         cmd.add("-e0");
         cmd.add("-j"); cmd.add(fdmExtruder.getAbsolutePath());
@@ -341,7 +363,9 @@ public class CuraEngineWrapper {
         cmd.add("-s"); cmd.add("retraction_combing="          + s.retractionCombing);
         cmd.add("-s"); cmd.add("retraction_min_travel=1.5");
         cmd.add("-s"); cmd.add("retraction_extrusion_window=" + s.retractionExtrusionWindow);
-        cmd.add("-s"); cmd.add("retraction_extra_prime_amount=0.1");
+        // Bowden tube hysteresis means the prime after retraction delivers less filament
+        // than commanded. 0.4mm compensates for the slack without over-extruding on short paths.
+        cmd.add("-s"); cmd.add("retraction_extra_prime_amount=0.4");
         // retraction_hop_enabled default_value=False; retraction_hop default_value=1mm.
         // Must be in extruder context to take effect.  0.2mm matches Cura Fast #2.
         cmd.add("-s"); cmd.add("retraction_hop_enabled="      + s.retractionHopEnabled);

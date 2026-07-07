@@ -1,5 +1,7 @@
 package com.chinmay.myprinter.data.repository;
 
+import android.content.Context;
+
 import androidx.lifecycle.LiveData;
 import androidx.lifecycle.MutableLiveData;
 
@@ -10,6 +12,8 @@ import com.chinmay.myprinter.data.source.printer.ConnectionCallback;
 import com.chinmay.myprinter.data.source.printer.PrinterClient;
 import com.chinmay.myprinter.data.source.printer.PrinterStatusListener;
 import com.chinmay.myprinter.data.source.printer.moonraker.MoonrakerClient;
+import com.chinmay.myprinter.util.PrintActionReceiver;
+import com.chinmay.myprinter.util.PrintProgressNotificationManager;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -22,10 +26,11 @@ public class PrinterRepository {
     private final MutableLiveData<Boolean> connectionLiveData;
     private final MutableLiveData<List<MoonrakerClient.TemperatureHistoryPoint>> temperatureHistoryLiveData;
     private final MutableLiveData<String> thumbnailUrlLiveData;
+    private final PrintProgressNotificationManager notificationManager;
 
     private final CombinedListener combinedListener = new CombinedListener();
 
-    public PrinterRepository(PrinterClient printerClient) {
+    public PrinterRepository(Context context, PrinterClient printerClient) {
         this.printerClient = printerClient;
         this.statusLiveData = new MutableLiveData<>();
         this.filesLiveData = new MutableLiveData<>(new ArrayList<>());
@@ -33,8 +38,12 @@ public class PrinterRepository {
         this.connectionLiveData = new MutableLiveData<>(false);
         this.temperatureHistoryLiveData = new MutableLiveData<>();
         this.thumbnailUrlLiveData = new MutableLiveData<>();
+        this.notificationManager = new PrintProgressNotificationManager(context);
 
-        // Add combined listener
+        // Wire the active client into the notification action receiver so that the
+        // Pause / Resume / Cancel buttons in the notification work even when backgrounded.
+        PrintActionReceiver.setClient(printerClient);
+
         printerClient.addStatusListener(combinedListener);
     }
 
@@ -43,6 +52,7 @@ public class PrinterRepository {
         @Override
         public void onStatusUpdate(PrinterStatus status) {
             statusLiveData.postValue(status);
+            notificationManager.onStatusUpdate(status);
         }
 
         @Override
@@ -245,5 +255,7 @@ public class PrinterRepository {
 
     public void cleanup() {
         printerClient.removeStatusListener(combinedListener);
+        PrintActionReceiver.setClient(null);
+        notificationManager.dismiss();
     }
 }

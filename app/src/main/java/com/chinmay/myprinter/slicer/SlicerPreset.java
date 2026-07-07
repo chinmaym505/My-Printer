@@ -38,7 +38,7 @@ public class SlicerPreset {
         fast2.wallCount               = 4;
         fast2.bottomLayers            = 7;
         fast2.infillPattern           = "gyroid";
-        fast2.insetDirection          = "outside_in";
+        fast2.insetDirection          = "inside_out";
         fast2.nozzleTemp              = 220.0f;
         fast2.nozzleTempLayer0        = 220.0f;
         fast2.bedTemp                 = 65.0f;
